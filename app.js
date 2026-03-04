@@ -184,10 +184,10 @@ function drawRoundedRect(ctx, x, y, w, h, r){
 }
 
 // Fit text by shrinking font size down to minPx, else ellipsize
-function drawFitText(ctx, text, x, y, maxW, fontPx, minPx, style, align="left", baseline="alphabetic"){
+function drawFitText(ctx, text, x, y, maxW, fontPx, minPx, style, align="left"){
   let size = fontPx;
   ctx.textAlign = align;
-  ctx.textBaseline = baseline;
+  ctx.textBaseline = "alphabetic";
   while(size >= minPx){
     ctx.font = `${style} ${size}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
     const w = ctx.measureText(text).width;
@@ -357,7 +357,7 @@ function drawCard(ctx, W, H, model){
     else baseNamePx = 30*s;
 
     ctx.fillStyle = text;
-    drawFitText(ctx, name, x + w/2, y+34*s, w-2*pad, baseNamePx, 9*s, "900", "center", "middle");
+    drawFitText(ctx, name, x + w/2, y+38*s, w-2*pad, baseNamePx, 9*s, "900", "center");
 
     // Percent (largest text in the card)
     const pn = toNumberLoose(pct);
@@ -382,7 +382,7 @@ function drawCard(ctx, W, H, model){
 
     ctx.fillStyle = text;
     ctx.textAlign = "left";
-    ctx.textBaseline = baseline;
+    ctx.textBaseline = "alphabetic";
     ctx.fillText(labelPart, startX, y+h-16*s);
 
     colorBySign(ctx, diff, red, green, text);

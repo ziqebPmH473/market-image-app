@@ -1,0 +1,16 @@
+{
+  "name": "Market Image Generator",
+  "short_name": "MarketImage",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIj4KPHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSI5NiIgZmlsbD0iIzBiMTIyMCIvPgo8cmVjdCB4PSI5MiIgeT0iMTIwIiB3aWR0aD0iMzI4IiBoZWlnaHQ9IjkyIiByeD0iMjAiIGZpbGw9IiNmZmZmZmYiLz4KPHJlY3QgeD0iOTIiIHk9IjI0NCIgd2lkdGg9IjMyOCIgaGVpZ2h0PSI5MiIgcng9IjIwIiBmaWxsPSIjZmZmZmZmIi8+CjxwYXRoIGQ9Ik0xNDAgMTg0aDE0MCIgc3Ryb2tlPSIjMGE3YTNhIiBzdHJva2Utd2lkdGg9IjE4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPHBhdGggZD0iTTE0MCAzMDhoMjAwIiBzdHJva2U9IiNkODIzMjMiIHN0cm9rZS13aWR0aD0iMTgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

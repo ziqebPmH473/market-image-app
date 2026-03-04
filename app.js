@@ -184,10 +184,10 @@ function drawRoundedRect(ctx, x, y, w, h, r){
 }
 
 // Fit text by shrinking font size down to minPx, else ellipsize
-function drawFitText(ctx, text, x, y, maxW, fontPx, minPx, style, align="left"){
+function drawFitText(ctx, text, x, y, maxW, fontPx, minPx, style, align="left", baseline="alphabetic"){
   let size = fontPx;
   ctx.textAlign = align;
-  ctx.textBaseline = "alphabetic";
+  ctx.textBaseline = baseline;
   while(size >= minPx){
     ctx.font = `${style} ${size}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
     const w = ctx.measureText(text).width;
@@ -311,7 +311,8 @@ function drawCard(ctx, W, H, model){
 
     const v = toNumberLoose(value);
     const vStr = isFinite(v) ? `${fmtComma(v, 2)}${label==="TOPIX"?"pt":"円"}` : String(value || "");
-    ctx.fillStyle = green;
+    // Index value should be black
+    ctx.fillStyle = text;
     drawFitText(ctx, vStr, x + w/2, y + 120*s, w - 2*pad, 70*s, 40*s, "900", "center");
 
     const d = toNumberLoose(diff);
@@ -344,6 +345,8 @@ function drawCard(ctx, W, H, model){
     const price = item.price || "";
     const diff = item.diff || "";
 
+    const pNum = toNumberLoose(price);
+    const priceStr = isFinite(pNum) ? fmtComma(pNum, 0) : String(price || "").replace(/,/g, "");
     // Name: bigger (no rank prefix). Shrink by length, then fit-to-width.
     let baseNamePx = 30*s;
     const len = String(name).length;
@@ -354,26 +357,39 @@ function drawCard(ctx, W, H, model){
     else baseNamePx = 30*s;
 
     ctx.fillStyle = text;
-    drawFitText(ctx, name, x+pad, y+38*s, w-2*pad, baseNamePx, 9*s, "900", "left");
+    drawFitText(ctx, name, x + w/2, y+34*s, w-2*pad, baseNamePx, 9*s, "900", "center", "middle");
 
-    // Percent (largest text in the card) — spacing reverted (more breathing room)
+    // Percent (largest text in the card)
     const pn = toNumberLoose(pct);
     const pctStr = isFinite(pn) ? `${fmtSigned(pn, 2)}%` : pct;
     colorBySign(ctx, pct, red, green, text);
     drawFitText(ctx, pctStr, x + w/2, y+84*s, w-2*pad, 44*s, 28*s, "900", "center");
 
-    // Price + Diff (medium spacing)
+    // Stock price centered
     ctx.fillStyle = text;
-    drawFitText(ctx, "株価:", x+pad, y-2+h-38*s, 78*s, 15*s, 18*s, "900", "left");
-    drawFitText(ctx, `${price}円`, x+pad+62*s, y-2+h-38*s, w-2*pad, 15*s, 18*s, "900", "left");
+    drawFitText(ctx, `株価 ${priceStr}円`, x + w/2, y-2+h-38*s, w-2*pad, 15*s, 18*s, "900", "center");
 
-    ctx.fillStyle = text;
-    drawFitText(ctx, "前日比:", x+pad, y+h-16*s, 90*s, 15*s, 18*s, "900", "left");
-
+    // Previous day diff centered, with colored value
     const dn = toNumberLoose(diff);
     const diffStr = isFinite(dn) ? fmtSigned(dn, 0) : diff;
+
+    // Measure to center "前日比 " + diffStr as a whole
+    ctx.font = `${900} ${15*s}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    const labelPart = "前日比 ";
+    const wLabel = ctx.measureText(labelPart).width;
+    const wValue = ctx.measureText(diffStr).width;
+    const startX = x + w/2 - (wLabel + wValue)/2;
+
+    ctx.fillStyle = text;
+    ctx.textAlign = "left";
+    ctx.textBaseline = baseline;
+    ctx.fillText(labelPart, startX, y+h-16*s);
+
     colorBySign(ctx, diff, red, green, text);
-    drawFitText(ctx, diffStr, x+pad+72*s, y+h-16*s, w-2*pad, 15*s, 18*s, "900", "left");
+    ctx.fillText(diffStr, startX + wLabel, y+h-16*s);
+
+    // restore
+    ctx.textAlign = "left";
   }
 
   for(let i=0;i<5;i++){
@@ -414,20 +430,19 @@ function drawCard(ctx, W, H, model){
     const pct = item.pct || "";
     const per = item.per || "";
 
-    // Sector name: bigger (no rank prefix)
+    // Sector name centered
     ctx.fillStyle = text;
-    drawFitText(ctx, sector, x+pad, y+34*s, w-2*pad, 25*s, 13*s, "900", "left");
+    drawFitText(ctx, sector, x + w/2, y+34*s, w-2*pad, 25*s, 13*s, "900", "center");
 
-    // Percent: biggest in this box
+    // Percent: biggest in this box (center)
     const pn = toNumberLoose(pct);
     const pctStr = isFinite(pn) ? `${fmtSigned(pn, 2)}%` : pct;
     colorBySign(ctx, pct, red, green, text);
     drawFitText(ctx, pctStr, x + w/2, y+78*s, w-2*pad, 44*s, 24*s, "900", "center");
 
-    // PER
+    // PER centered (black)
     ctx.fillStyle = text;
-    drawFitText(ctx, "PER:", x+pad, y+2+h-16*s, 66*s, 18*s, 12*s, "900", "left");
-    drawFitText(ctx, `${per}倍`, x+pad+50*s, y+2+h-16*s, w-2*pad, 18*s, 12*s, "900", "left");
+    drawFitText(ctx, `PER ${per}倍`, x + w/2, y+2+h-16*s, w-2*pad, 18*s, 12*s, "900", "center");
   }
 
   for(let i=0;i<5;i++){

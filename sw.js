@@ -1,5 +1,5 @@
 // very small offline cache
-const CACHE = "market-image-app-v1";
+const CACHE = "market-image-app-v2";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(()=>self.skipWaiting()));

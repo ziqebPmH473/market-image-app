@@ -367,14 +367,14 @@ function drawCard(ctx, W, H, model){
 
     // Stock price centered
     ctx.fillStyle = text;
-    drawFitText(ctx, `株価 ${priceStr}円`, x + w/2, y-2+h-38*s, w-2*pad, 20*s, 18*s, "900", "center");
+    drawFitText(ctx, `株価 ${priceStr}円`, x + w/2, y+h-38*s, w-2*pad, 20*s, 18*s, "900", "center");
 
     // Previous day diff centered, with colored value
     const dn = toNumberLoose(diff);
     const diffStr = isFinite(dn) ? fmtSigned(dn, 0) : diff;
 
     // Measure to center "前日比 " + diffStr as a whole
-    ctx.font = `${900} ${20*s}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.font = `${900} ${18*s}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
     const labelPart = "前日比 ";
     const wLabel = ctx.measureText(labelPart).width;
     const wValue = ctx.measureText(diffStr).width;

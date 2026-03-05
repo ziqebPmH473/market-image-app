@@ -286,12 +286,12 @@ function drawCard(ctx, W, H, model){
     : (model.date ? `${model.title}（${model.date}）` : model.title);
 
   ctx.fillStyle = text;
-  drawFitText(ctx, titleText, W/2, 58*s, W - 2*M, 46*s, 32*s, "800", "center");
+  drawFitText(ctx, titleText, W/2, 74*s, W - 2*M, 50*s, 32*s, "800", "center");
 
-  if(model.headline){
-    ctx.fillStyle = text;
-    drawFitText(ctx, model.headline, M, 98*s, W - 2*M, 24*s, 18*s, "700", "left");
-  }
+  //if(model.headline){
+  //  ctx.fillStyle = text;
+  //  drawFitText(ctx, model.headline, M, 98*s, W - 2*M, 24*s, 18*s, "700", "left");
+  //}
 
   // ----- Indices boxes -----
   const idxY = 110*s;
@@ -320,9 +320,9 @@ function drawCard(ctx, W, H, model){
     const dStr = isFinite(d) ? fmtSigned(d, 2) : String(diff || "");
     const pStr = isFinite(p) ? `(${fmtSigned(p, 2)}%)` : (pct ? `(${pct})` : "");
     ctx.fillStyle = text;
-    drawFitText(ctx, "前日比:", x + 68*s, y + h - 24*s, 140*s, 26*s, 18*s, "800", "left");
+    drawFitText(ctx, "前日比:", x + 65*s, y + h - 24*s, 140*s, 30*s, 18*s, "800", "left");
     colorBySign(ctx, diff, red, green, text);
-    drawFitText(ctx, `${dStr} ${pStr}`, x + 186*s, y + h - 24*s, w - 220*s, 26*s, 18*s, "900", "left");
+    drawFitText(ctx, `${dStr} ${pStr}`, x + 184*s, y + h - 24*s, w - 220*s, 30*s, 18*s, "900", "left");
   }
 
   drawIndexBox(leftX, idxY, idxW, idxH, "日経平均株価", model.nikkei_value, model.nikkei_diff, model.nikkei_pct);
@@ -331,7 +331,7 @@ function drawCard(ctx, W, H, model){
   // ----- Risers -----
   const risY = idxY + idxH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.risers_title, M, risY + 26*s, W - 2*M, 26*s, 20*s, "900", "left");
+  drawFitText(ctx, model.risers_title, M, risY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
 
   const cardY = risY + 40*s;
   const cardH = 152*s;
@@ -343,6 +343,8 @@ function drawCard(ctx, W, H, model){
     const name = item.name || "";
     const pct = item.pct || "";
     const price = item.price || "";
+    const pNum = toNumberLoose(price);
+	const priceStr = isFinite(pNum) ? fmtComma(pNum, 0) : String(price || "");
     const diff = item.diff || "";
 
     // Name: bigger (no rank prefix). Shrink by length, then fit-to-width.
@@ -365,14 +367,14 @@ function drawCard(ctx, W, H, model){
 
     // Stock price centered
     ctx.fillStyle = text;
-    drawFitText(ctx, `株価 ${price}円`, x + w/2, y-2+h-38*s, w-2*pad, 15*s, 18*s, "900", "center");
+    drawFitText(ctx, `株価 ${priceStr}円`, x + w/2, y-2+h-38*s, w-2*pad, 20*s, 18*s, "900", "center");
 
     // Previous day diff centered, with colored value
     const dn = toNumberLoose(diff);
     const diffStr = isFinite(dn) ? fmtSigned(dn, 0) : diff;
 
     // Measure to center "前日比 " + diffStr as a whole
-    ctx.font = `${900} ${15*s}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.font = `${900} ${20*s}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
     const labelPart = "前日比 ";
     const wLabel = ctx.measureText(labelPart).width;
     const wValue = ctx.measureText(diffStr).width;
@@ -381,10 +383,10 @@ function drawCard(ctx, W, H, model){
     ctx.fillStyle = text;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(labelPart, startX, y+h-16*s);
+    ctx.fillText(labelPart, startX, y+h-14*s);
 
     colorBySign(ctx, diff, red, green, text);
-    ctx.fillText(diffStr, startX + wLabel, y+h-16*s);
+    ctx.fillText(diffStr, startX + wLabel, y+h-14*s);
 
     // restore
     ctx.textAlign = "left";
@@ -399,7 +401,7 @@ function drawCard(ctx, W, H, model){
   // ----- Decliners -----
   const decTitleY = cardY + cardH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.decliners_title, M, decTitleY + 26*s, W - 2*M, 26*s, 20*s, "900", "left");
+  drawFitText(ctx, model.decliners_title, M, decTitleY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
 
   const decY = decTitleY + 40*s;
   for(let i=0;i<5;i++){
@@ -411,11 +413,11 @@ function drawCard(ctx, W, H, model){
   // ----- Sectors -----
   const secTitleY = decY + cardH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.sector_title, M, secTitleY + 26*s, W - 2*M, 24*s, 18*s, "900", "left");
+  drawFitText(ctx, model.sector_title, M, secTitleY + 26*s, W - 2*M, 30*s, 18*s, "900", "left");
 
   const topLabelY = secTitleY + 44*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, "【トップ5】", M, topLabelY + 18*s, W - 2*M, 18*s, 12*s, "900", "left");
+  drawFitText(ctx, "【トップ5】", M, topLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
 
   const secBoxY = topLabelY + 26*s;
   const secH = 116*s;
@@ -440,7 +442,7 @@ function drawCard(ctx, W, H, model){
 
     // PER centered (black)
     ctx.fillStyle = text;
-    drawFitText(ctx, `PER ${per}倍`, x + w/2, y+2+h-16*s, w-2*pad, 18*s, 12*s, "900", "center");
+    drawFitText(ctx, `PER ${per}倍`, x + w/2, y+2+h-14*s, w-2*pad, 20*s, 12*s, "900", "center");
   }
 
   for(let i=0;i<5;i++){
@@ -451,7 +453,7 @@ function drawCard(ctx, W, H, model){
 
   const worstLabelY = secBoxY + secH + 6*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, "【ワースト5】", M, worstLabelY + 18*s, W - 2*M, 18*s, 12*s, "900", "left");
+  drawFitText(ctx, "【ワースト5】", M, worstLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
 
   const worstY = worstLabelY + 22*s;
   for(let i=0;i<5;i++){
@@ -483,7 +485,7 @@ function renderFromText(text, options={}){
 async function downloadPNG(){
   // Always export at 2160 for crispness (2x).
   const tmp = document.createElement("canvas");
-  tmp.width = 2048; tmp.height = 2048;
+  tmp.width = 1080; tmp.height = 1080;
   const ctx = tmp.getContext("2d");
 
   const parsed = parseTSVBlocks($("input").value);
@@ -493,7 +495,7 @@ async function downloadPNG(){
     setStatus("err", "保存できません: " + errs.join(" / "));
     return;
   }
-  drawCard(ctx, 2048, 2048, model);
+  drawCard(ctx, 1080, 1080, model);
 
   const blob = await new Promise(res => tmp.toBlob(res, "image/png"));
   if(!blob){

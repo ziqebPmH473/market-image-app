@@ -54,11 +54,6 @@
   </main>
 
   <script src="app.js"></script>
-  <script>
-    // Best-effort PWA offline
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    }
-  </script>
+
 </body>
 </html>

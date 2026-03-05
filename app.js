@@ -345,8 +345,6 @@ function drawCard(ctx, W, H, model){
     const price = item.price || "";
     const diff = item.diff || "";
 
-    const pNum = toNumberLoose(price);
-    const priceStr = isFinite(pNum) ? fmtComma(pNum, 0) : String(price || "").replace(/,/g, "");
     // Name: bigger (no rank prefix). Shrink by length, then fit-to-width.
     let baseNamePx = 30*s;
     const len = String(name).length;
@@ -367,7 +365,7 @@ function drawCard(ctx, W, H, model){
 
     // Stock price centered
     ctx.fillStyle = text;
-    drawFitText(ctx, `株価 ${priceStr}円`, x + w/2, y-2+h-38*s, w-2*pad, 15*s, 18*s, "900", "center");
+    drawFitText(ctx, `株価 ${price}円`, x + w/2, y-2+h-38*s, w-2*pad, 15*s, 18*s, "900", "center");
 
     // Previous day diff centered, with colored value
     const dn = toNumberLoose(diff);

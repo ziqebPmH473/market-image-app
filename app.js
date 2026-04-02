@@ -509,9 +509,10 @@ async function downloadPNG(){
     return `market_${d || "date"}_${t || "snap"}.png`;
   })();
 
-  // Web Share (mobile)
+  // Web Share (mobile only)
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   const file = new File([blob], filename, {type:"image/png"});
-  if(navigator.canShare && navigator.canShare({files:[file]})){
+  if(isMobile && navigator.canShare && navigator.canShare({files:[file]})){
     try{
       await navigator.share({files:[file], title: filename});
       setStatus("ok", "共有メニューを開きました");

@@ -14,6 +14,40 @@
   </header>
 
   <main class="app-main">
+    <section class="panel morning-panel">
+      <div class="panel-head">
+        <div class="panel-title">前場プロンプト</div>
+        <div class="panel-actions">
+          <button id="btnZenbaUrls"    class="btn">URLコピー</button>
+          <button id="btnZenbaRank"    class="btn">RANK</button>
+          <button id="btnZenbaNotify"  class="btn">投稿</button>
+          <button id="btnZenbaGrafic"  class="btn primary">画像</button>
+        </div>
+      </div>
+      <div class="hint" style="padding:10px 12px">
+        各ボタンを押すと、対応するプロンプト文字列がクリップボードにコピーされます。
+      </div>
+      <div id="zenbaStatus" class="status"></div>
+    </section>
+
+    <section class="panel preview-panel">
+      <div class="panel-head">
+        <div class="panel-title">プレビュー</div>
+        <div class="panel-actions">
+          <label class="toggle">
+            <input id="hiresPreview" type="checkbox" />
+            <span>高解像度プレビュー（重い）</span>
+          </label>
+        </div>
+      </div>
+      <div class="preview-wrap">
+        <canvas id="canvas" width="1080" height="1080"></canvas>
+      </div>
+      <div class="hint">
+        ※スマホで保存できない場合は「PNG保存」→表示された画像を長押し保存、または共有メニューを利用してください。
+      </div>
+    </section>
+
     <section class="panel">
       <div class="panel-head">
         <div class="panel-title">入力（TSV＋[SECTION]）</div>
@@ -32,24 +66,6 @@
       </details>
 
       <div id="status" class="status"></div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title">プレビュー</div>
-        <div class="panel-actions">
-          <label class="toggle">
-            <input id="hiresPreview" type="checkbox" />
-            <span>高解像度プレビュー（重い）</span>
-          </label>
-        </div>
-      </div>
-      <div class="preview-wrap">
-        <canvas id="canvas" width="1080" height="1080"></canvas>
-      </div>
-      <div class="hint">
-        ※スマホで保存できない場合は「PNG保存」→表示された画像を長押し保存、または共有メニューを利用してください。
-      </div>
     </section>
   </main>
 

@@ -604,6 +604,125 @@ function boot(){
   });
 
   doRender();
+
+  // ---- 前場プロンプト（C:\work\movie/script.js:266-287 の market_morningsession より移植）----
+  const ZENBA_PROMPTS = {
+    urls: `https://quote.nomura.co.jp/nomura/cgi-bin/quote.cgi?template=nomura_tp_index_01
+https://www.nikkei.com/marketdata/ranking-jp/price-rise/?market=G_TP
+https://www.nikkei.com/marketdata/ranking-jp/price-drop/?market=G_TP
+https://s.kabutan.jp/warnings/sector_stocks_ranking/
+https://s.kabutan.jp/warnings/sector_stocks_ranking/?direction=asc&order=prev_price_ratio`,
+    rank: `東証プライム市場の上昇率・下落率ランキングTOP5の銘柄の証券コード、銘柄名を以下の形式で出力してください。
+一覧のタイトル・一覧以外の内容は一切記述しないでください。
+
+上昇率TOP5
+（上昇率上位の表）
+下落率TOP5
+（下落率上位の表）`,
+    Notify: `SNSへの投稿内容を以下の形式で作成してください。
+日付、日経平均、TOPIXの値だけ書き換えて、以下の形式で出力すること。
+以下の形式に記載のない内容（説明や返答）は一切記載しないこと。
+改行位置も以下の通りに記載すること
+
+今日の東証マーケット前場の振り返り速報！
+M月Dの値動きサクッと確認👇
+📉日経平均：XX,XXX.XX円（+X,XXX.XX円）
+📉TOPIX：X,XXX.XX（+XX.XX）
+▼1日の総まとめと明日の戦略は、今夜の動画で解説します！
+フォローしてお待ちください
+#日本株 #日経平均 #急騰銘柄`,
+    grafic: `以下の形式で【市場データ】（指数、上昇率上位5銘柄、下落率上位5銘柄、業種変動率上位5業種、業種変動率下位5業種 ）を出力してください。
+銘柄名は銘柄名一覧表の「銘柄名（正式）」を使用してください。
+ただし、銘柄名一覧表にない場合は、ソースの名称もしくはレポートの名称を使用してください。
+銘柄名は、ホールディングスはHD、フィナンシャルグループ はFG、グループはGに変換してください。
+
+【市場データ】
+[MARKET]
+title\t1分でわかる！今日の株式市場
+date\t2026/03/04
+timing\t前引け
+nikkei_value\t54090.11
+nikkei_diff\t-2188.94
+nikkei_pct\t-3.89
+topix_value\t3611.96
+topix_diff\t-160.21
+topix_pct\t-4.25
+
+[RISERS]
+rank\tname\tpct\tprice\tdiff
+1\tTOKYO BASE\t+7.42\t391\t+27
+2\tベイカレント\t+6.34\t4529\t+270
+3\tニデック\t+6.00\t2402\t+136
+4\tギフティ\t+4.74\t995\t+45
+5\tメドレー\t+4.32\t1859\t+77
+
+[DECLINERS]
+rank\tname\tpct\tprice\tdiff
+1\t日鉄鉱業\t-14.82\t3420\t-595
+2\tオプトラン\t-13.19\t2752\t-418
+3\t大阪チタニウムテクノロジーズ\t-12.92\t2852\t-423
+4\t正興電機製作所\t-12.41\t2231\t-316
+5\t三井E&S\t-12.28\t6829\t-956
+
+[SECTOR_TOP]
+rank\tsector\tpct\tper
+1\tその他製品\t-0.71\t18.5
+2\tサービス業\t-0.94\t25.1
+3\t小売業\t-1.02\t22.8
+4\t空運業\t-1.82\t19.4
+5\t陸運業\t-2.13\t20.7
+
+[SECTOR_WORST]
+rank\tsector\tpct\tper
+1\t非鉄金属\t-7.85\t12.3
+2\t石油・石炭\t-7.41\t9.8
+3\tガラス・土石\t-6.49\t15.6
+4\t卸売業\t-6.39\t16.2
+5\t銀行業\t-6.31\t14.7`,
+  };
+
+  const zenbaStatus = $("zenbaStatus");
+  const setZenbaStatus = (kind, msg) => {
+    if(!zenbaStatus) return;
+    zenbaStatus.classList.remove("ok","err");
+    if(kind) zenbaStatus.classList.add(kind);
+    zenbaStatus.textContent = msg || "";
+  };
+
+  const copyZenba = async (key, btn) => {
+    const text = ZENBA_PROMPTS[key];
+    try{
+      if(!navigator.clipboard || !navigator.clipboard.writeText){
+        throw new Error("clipboard API unavailable");
+      }
+      await navigator.clipboard.writeText(text);
+      setZenbaStatus("ok", `コピーしました: ${btn.textContent}`);
+    }catch(e){
+      // Fallback: textarea + execCommand
+      try{
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        setZenbaStatus("ok", `コピーしました: ${btn.textContent}`);
+      }catch(e2){
+        setZenbaStatus("err", "クリップボードに書き込めませんでした");
+      }
+    }
+  };
+
+  const bindZenba = (id, key) => {
+    const b = $(id);
+    if(b) b.addEventListener("click", (e) => copyZenba(key, e.currentTarget));
+  };
+  bindZenba("btnZenbaUrls",   "urls");
+  bindZenba("btnZenbaRank",   "rank");
+  bindZenba("btnZenbaNotify", "Notify");
+  bindZenba("btnZenbaGrafic", "grafic");
 }
 
 document.addEventListener("DOMContentLoaded", boot);

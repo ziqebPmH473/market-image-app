@@ -286,12 +286,12 @@ function drawCard(ctx, W, H, model){
     : (model.date ? `${model.title}（${model.date}）` : model.title);
 
   ctx.fillStyle = text;
-  drawFitText(ctx, titleText, W/2, 74*s, W - 2*M, 50*s, 32*s, "800", "center");
+  drawFitText(ctx, titleText, W/2, 58*s, W - 2*M, 46*s, 32*s, "800", "center");
 
-  //if(model.headline){
-  //  ctx.fillStyle = text;
-  //  drawFitText(ctx, model.headline, M, 98*s, W - 2*M, 24*s, 18*s, "700", "left");
-  //}
+  if(model.headline){
+    ctx.fillStyle = text;
+    drawFitText(ctx, model.headline, M, 98*s, W - 2*M, 24*s, 18*s, "700", "left");
+  }
 
   // ----- Indices boxes -----
   const idxY = 110*s;
@@ -311,8 +311,7 @@ function drawCard(ctx, W, H, model){
 
     const v = toNumberLoose(value);
     const vStr = isFinite(v) ? `${fmtComma(v, 2)}${label==="TOPIX"?"pt":"円"}` : String(value || "");
-    // Index value should be black
-    ctx.fillStyle = text;
+    ctx.fillStyle = green;
     drawFitText(ctx, vStr, x + w/2, y + 120*s, w - 2*pad, 70*s, 40*s, "900", "center");
 
     const d = toNumberLoose(diff);
@@ -320,9 +319,9 @@ function drawCard(ctx, W, H, model){
     const dStr = isFinite(d) ? fmtSigned(d, 2) : String(diff || "");
     const pStr = isFinite(p) ? `(${fmtSigned(p, 2)}%)` : (pct ? `(${pct})` : "");
     ctx.fillStyle = text;
-    drawFitText(ctx, "前日比:", x + 65*s, y + h - 24*s, 140*s, 30*s, 18*s, "800", "left");
+    drawFitText(ctx, "前日比:", x + 68*s, y + h - 24*s, 140*s, 26*s, 18*s, "800", "left");
     colorBySign(ctx, diff, red, green, text);
-    drawFitText(ctx, `${dStr} ${pStr}`, x + 184*s, y + h - 24*s, w - 220*s, 30*s, 18*s, "900", "left");
+    drawFitText(ctx, `${dStr} ${pStr}`, x + 186*s, y + h - 24*s, w - 220*s, 26*s, 18*s, "900", "left");
   }
 
   drawIndexBox(leftX, idxY, idxW, idxH, "日経平均株価", model.nikkei_value, model.nikkei_diff, model.nikkei_pct);
@@ -331,7 +330,7 @@ function drawCard(ctx, W, H, model){
   // ----- Risers -----
   const risY = idxY + idxH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.risers_title, M, risY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
+  drawFitText(ctx, model.risers_title, M, risY + 26*s, W - 2*M, 26*s, 20*s, "900", "left");
 
   const cardY = risY + 40*s;
   const cardH = 152*s;
@@ -343,8 +342,6 @@ function drawCard(ctx, W, H, model){
     const name = item.name || "";
     const pct = item.pct || "";
     const price = item.price || "";
-    const pNum = toNumberLoose(price);
-	const priceStr = isFinite(pNum) ? fmtComma(pNum, 0) : String(price || "");
     const diff = item.diff || "";
 
     // Name: bigger (no rank prefix). Shrink by length, then fit-to-width.
@@ -357,39 +354,26 @@ function drawCard(ctx, W, H, model){
     else baseNamePx = 30*s;
 
     ctx.fillStyle = text;
-    drawFitText(ctx, name, x + w/2, y+38*s, w-2*pad, baseNamePx, 9*s, "900", "center");
+    drawFitText(ctx, name, x+pad, y+38*s, w-2*pad, baseNamePx, 9*s, "900", "left");
 
-    // Percent (largest text in the card)
+    // Percent (largest text in the card) — spacing reverted (more breathing room)
     const pn = toNumberLoose(pct);
     const pctStr = isFinite(pn) ? `${fmtSigned(pn, 2)}%` : pct;
     colorBySign(ctx, pct, red, green, text);
     drawFitText(ctx, pctStr, x + w/2, y+84*s, w-2*pad, 44*s, 28*s, "900", "center");
 
-    // Stock price centered
+    // Price + Diff (medium spacing)
     ctx.fillStyle = text;
-    drawFitText(ctx, `株価 ${priceStr}円`, x + w/2, y+h-38*s, w-2*pad, 20*s, 18*s, "900", "center");
+    drawFitText(ctx, "株価:", x+pad, y-2+h-38*s, 78*s, 15*s, 18*s, "900", "left");
+    drawFitText(ctx, `${price}円`, x+pad+62*s, y-2+h-38*s, w-2*pad, 15*s, 18*s, "900", "left");
 
-    // Previous day diff centered, with colored value
+    ctx.fillStyle = text;
+    drawFitText(ctx, "前日比:", x+pad, y+h-16*s, 90*s, 15*s, 18*s, "900", "left");
+
     const dn = toNumberLoose(diff);
     const diffStr = isFinite(dn) ? fmtSigned(dn, 0) : diff;
-
-    // Measure to center "前日比 " + diffStr as a whole
-    ctx.font = `${900} ${18*s}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
-    const labelPart = "前日比 ";
-    const wLabel = ctx.measureText(labelPart).width;
-    const wValue = ctx.measureText(diffStr).width;
-    const startX = x + w/2 - (wLabel + wValue)/2;
-
-    ctx.fillStyle = text;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(labelPart, startX, y+h-14*s);
-
     colorBySign(ctx, diff, red, green, text);
-    ctx.fillText(diffStr, startX + wLabel, y+h-14*s);
-
-    // restore
-    ctx.textAlign = "left";
+    drawFitText(ctx, diffStr, x+pad+72*s, y+h-16*s, w-2*pad, 15*s, 18*s, "900", "left");
   }
 
   for(let i=0;i<5;i++){
@@ -401,7 +385,7 @@ function drawCard(ctx, W, H, model){
   // ----- Decliners -----
   const decTitleY = cardY + cardH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.decliners_title, M, decTitleY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
+  drawFitText(ctx, model.decliners_title, M, decTitleY + 26*s, W - 2*M, 26*s, 20*s, "900", "left");
 
   const decY = decTitleY + 40*s;
   for(let i=0;i<5;i++){
@@ -413,11 +397,11 @@ function drawCard(ctx, W, H, model){
   // ----- Sectors -----
   const secTitleY = decY + cardH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.sector_title, M, secTitleY + 26*s, W - 2*M, 30*s, 18*s, "900", "left");
+  drawFitText(ctx, model.sector_title, M, secTitleY + 26*s, W - 2*M, 24*s, 18*s, "900", "left");
 
   const topLabelY = secTitleY + 44*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, "【トップ5】", M, topLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
+  drawFitText(ctx, "【トップ5】", M, topLabelY + 18*s, W - 2*M, 18*s, 12*s, "900", "left");
 
   const secBoxY = topLabelY + 26*s;
   const secH = 116*s;
@@ -430,19 +414,20 @@ function drawCard(ctx, W, H, model){
     const pct = item.pct || "";
     const per = item.per || "";
 
-    // Sector name centered
+    // Sector name: bigger (no rank prefix)
     ctx.fillStyle = text;
-    drawFitText(ctx, sector, x + w/2, y+34*s, w-2*pad, 25*s, 13*s, "900", "center");
+    drawFitText(ctx, sector, x+pad, y+34*s, w-2*pad, 25*s, 13*s, "900", "left");
 
-    // Percent: biggest in this box (center)
+    // Percent: biggest in this box
     const pn = toNumberLoose(pct);
     const pctStr = isFinite(pn) ? `${fmtSigned(pn, 2)}%` : pct;
     colorBySign(ctx, pct, red, green, text);
     drawFitText(ctx, pctStr, x + w/2, y+78*s, w-2*pad, 44*s, 24*s, "900", "center");
 
-    // PER centered (black)
+    // PER
     ctx.fillStyle = text;
-    drawFitText(ctx, `PER ${per}倍`, x + w/2, y+2+h-14*s, w-2*pad, 20*s, 12*s, "900", "center");
+    drawFitText(ctx, "PER:", x+pad, y+2+h-16*s, 66*s, 18*s, 12*s, "900", "left");
+    drawFitText(ctx, `${per}倍`, x+pad+50*s, y+2+h-16*s, w-2*pad, 18*s, 12*s, "900", "left");
   }
 
   for(let i=0;i<5;i++){
@@ -453,7 +438,7 @@ function drawCard(ctx, W, H, model){
 
   const worstLabelY = secBoxY + secH + 6*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, "【ワースト5】", M, worstLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
+  drawFitText(ctx, "【ワースト5】", M, worstLabelY + 18*s, W - 2*M, 18*s, 12*s, "900", "left");
 
   const worstY = worstLabelY + 22*s;
   for(let i=0;i<5;i++){
@@ -485,7 +470,7 @@ function renderFromText(text, options={}){
 async function downloadPNG(){
   // Always export at 2160 for crispness (2x).
   const tmp = document.createElement("canvas");
-  tmp.width = 1080; tmp.height = 1080;
+  tmp.width = 2048; tmp.height = 2048;
   const ctx = tmp.getContext("2d");
 
   const parsed = parseTSVBlocks($("input").value);
@@ -495,7 +480,7 @@ async function downloadPNG(){
     setStatus("err", "保存できません: " + errs.join(" / "));
     return;
   }
-  drawCard(ctx, 1080, 1080, model);
+  drawCard(ctx, 2048, 2048, model);
 
   const blob = await new Promise(res => tmp.toBlob(res, "image/png"));
   if(!blob){
@@ -509,10 +494,9 @@ async function downloadPNG(){
     return `market_${d || "date"}_${t || "snap"}.png`;
   })();
 
-  // Web Share (mobile only)
-  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  // Web Share (mobile)
   const file = new File([blob], filename, {type:"image/png"});
-  if(isMobile && navigator.canShare && navigator.canShare({files:[file]})){
+  if(navigator.canShare && navigator.canShare({files:[file]})){
     try{
       await navigator.share({files:[file], title: filename});
       setStatus("ok", "共有メニューを開きました");
@@ -604,125 +588,6 @@ function boot(){
   });
 
   doRender();
-
-  // ---- 前場プロンプト（C:\work\movie/script.js:266-287 の market_morningsession より移植）----
-  const ZENBA_PROMPTS = {
-    urls: `https://quote.nomura.co.jp/nomura/cgi-bin/quote.cgi?template=nomura_tp_index_01
-https://www.nikkei.com/marketdata/ranking-jp/price-rise/?market=G_TP
-https://www.nikkei.com/marketdata/ranking-jp/price-drop/?market=G_TP
-https://s.kabutan.jp/warnings/sector_stocks_ranking/
-https://s.kabutan.jp/warnings/sector_stocks_ranking/?direction=asc&order=prev_price_ratio`,
-    rank: `東証プライム市場の上昇率・下落率ランキングTOP5の銘柄の証券コード、銘柄名を以下の形式で出力してください。
-一覧のタイトル・一覧以外の内容は一切記述しないでください。
-
-上昇率TOP5
-（上昇率上位の表）
-下落率TOP5
-（下落率上位の表）`,
-    Notify: `SNSへの投稿内容を以下の形式で作成してください。
-日付、日経平均、TOPIXの値だけ書き換えて、以下の形式で出力すること。
-以下の形式に記載のない内容（説明や返答）は一切記載しないこと。
-改行位置も以下の通りに記載すること
-
-今日の東証マーケット前場の振り返り速報！
-M月Dの値動きサクッと確認👇
-📉日経平均：XX,XXX.XX円（+X,XXX.XX円）
-📉TOPIX：X,XXX.XX（+XX.XX）
-▼1日の総まとめと明日の戦略は、今夜の動画で解説します！
-フォローしてお待ちください
-#日本株 #日経平均 #急騰銘柄`,
-    grafic: `以下の形式で【市場データ】（指数、上昇率上位5銘柄、下落率上位5銘柄、業種変動率上位5業種、業種変動率下位5業種 ）を出力してください。
-銘柄名は銘柄名一覧表の「銘柄名（正式）」を使用してください。
-ただし、銘柄名一覧表にない場合は、ソースの名称もしくはレポートの名称を使用してください。
-銘柄名は、ホールディングスはＨＤ、フィナンシャルグループ はＦＧ、グループはＧに変換してください。
-
-【市場データ】
-[MARKET]
-title\t1分でわかる！今日の株式市場
-date\t2026/03/04
-timing\t前引け
-nikkei_value\t54090.11
-nikkei_diff\t-2188.94
-nikkei_pct\t-3.89
-topix_value\t3611.96
-topix_diff\t-160.21
-topix_pct\t-4.25
-
-[RISERS]
-rank\tname\tpct\tprice\tdiff
-1\tTOKYO BASE\t+7.42\t391\t+27
-2\tベイカレント\t+6.34\t4529\t+270
-3\tニデック\t+6.00\t2402\t+136
-4\tギフティ\t+4.74\t995\t+45
-5\tメドレー\t+4.32\t1859\t+77
-
-[DECLINERS]
-rank\tname\tpct\tprice\tdiff
-1\t日鉄鉱業\t-14.82\t3420\t-595
-2\tオプトラン\t-13.19\t2752\t-418
-3\t大阪チタニウムテクノロジーズ\t-12.92\t2852\t-423
-4\t正興電機製作所\t-12.41\t2231\t-316
-5\t三井E&S\t-12.28\t6829\t-956
-
-[SECTOR_TOP]
-rank\tsector\tpct\tper
-1\tその他製品\t-0.71\t18.5
-2\tサービス業\t-0.94\t25.1
-3\t小売業\t-1.02\t22.8
-4\t空運業\t-1.82\t19.4
-5\t陸運業\t-2.13\t20.7
-
-[SECTOR_WORST]
-rank\tsector\tpct\tper
-1\t非鉄金属\t-7.85\t12.3
-2\t石油・石炭\t-7.41\t9.8
-3\tガラス・土石\t-6.49\t15.6
-4\t卸売業\t-6.39\t16.2
-5\t銀行業\t-6.31\t14.7`,
-  };
-
-  const zenbaStatus = $("zenbaStatus");
-  const setZenbaStatus = (kind, msg) => {
-    if(!zenbaStatus) return;
-    zenbaStatus.classList.remove("ok","err");
-    if(kind) zenbaStatus.classList.add(kind);
-    zenbaStatus.textContent = msg || "";
-  };
-
-  const copyZenba = async (key, btn) => {
-    const text = ZENBA_PROMPTS[key];
-    try{
-      if(!navigator.clipboard || !navigator.clipboard.writeText){
-        throw new Error("clipboard API unavailable");
-      }
-      await navigator.clipboard.writeText(text);
-      setZenbaStatus("ok", `コピーしました: ${btn.textContent}`);
-    }catch(e){
-      // Fallback: textarea + execCommand
-      try{
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
-        setZenbaStatus("ok", `コピーしました: ${btn.textContent}`);
-      }catch(e2){
-        setZenbaStatus("err", "クリップボードに書き込めませんでした");
-      }
-    }
-  };
-
-  const bindZenba = (id, key) => {
-    const b = $(id);
-    if(b) b.addEventListener("click", (e) => copyZenba(key, e.currentTarget));
-  };
-  bindZenba("btnZenbaUrls",   "urls");
-  bindZenba("btnZenbaRank",   "rank");
-  bindZenba("btnZenbaNotify", "Notify");
-  bindZenba("btnZenbaGrafic", "grafic");
 }
 
 document.addEventListener("DOMContentLoaded", boot);

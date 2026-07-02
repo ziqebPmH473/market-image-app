@@ -4,7 +4,7 @@
     {
       "name": "market-image-app",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "-p", "3456", "."],
+      "runtimeArgs": ["wrangler", "pages", "dev", ".", "--port", "3456", "--compatibility-date", "2024-01-01"],
       "port": 3456
     }
   ]

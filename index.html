@@ -13,8 +13,14 @@
     <div class="app-subtitle">NotebookLMのTSVを貼り付け → 1080×1080 PNGを書き出し</div>
   </header>
 
+  <nav class="tabs">
+    <button id="tabBtnManual" class="tab-btn active" data-tab="manual">手動（TSV貼付）</button>
+    <button id="tabBtnAuto"   class="tab-btn" data-tab="auto">自動取得（URL→正式化）</button>
+  </nav>
+
   <main class="app-main">
-    <section class="panel morning-panel">
+    <!-- ===== 手動タブ ===== -->
+    <section class="panel morning-panel tab-panel" data-tab="manual">
       <div class="panel-head">
         <div class="panel-title">前場プロンプト</div>
         <div class="panel-actions">
@@ -28,6 +34,34 @@
         各ボタンを押すと、対応するプロンプト文字列がクリップボードにコピーされます。
       </div>
       <div id="zenbaStatus" class="status"></div>
+    </section>
+
+    <!-- ===== 自動取得タブ ===== -->
+    <section class="panel auto-panel tab-panel is-hidden" data-tab="auto">
+      <div class="panel-head">
+        <div class="panel-title">自動取得（野村・日経・株探）</div>
+        <div class="panel-actions">
+          <button id="btnAutoFetch" class="btn primary">データ取得＆生成</button>
+        </div>
+      </div>
+      <div class="auto-body">
+        <div class="auto-row">
+          <label class="auto-field">
+            <span>日付</span>
+            <input id="autoDate" type="text" placeholder="2026/03/04" />
+          </label>
+          <label class="auto-field">
+            <span>タイミング</span>
+            <input id="autoTiming" type="text" placeholder="前引け" value="前引け" />
+          </label>
+        </div>
+        <div class="hint" style="padding:0">
+          ボタンを押すと8URL相当のデータをサーバー経由で取得し、証券コードから正式名称に変換（ホールディングス→ＨＤ 等）して入力欄に反映＋即プレビューします。
+        </div>
+        <div id="autoDictInfo" class="auto-dict"></div>
+      </div>
+      <div id="autoStatus" class="status"></div>
+      <div id="autoResult" class="auto-result"></div>
     </section>
 
     <section class="panel preview-panel">
@@ -48,7 +82,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel tab-panel" data-tab="manual">
       <div class="panel-head">
         <div class="panel-title">入力（TSV＋[SECTION]）</div>
         <div class="panel-actions">
@@ -69,6 +103,7 @@
     </section>
   </main>
 
+  <script src="meigara-dict.js"></script>
   <script src="app.js"></script>
 
 </body>

@@ -539,6 +539,108 @@ function setStatus(kind, msg){
   el.textContent = msg || "";
 }
 
+// ==================== 自動取得（URL→データ取得＋名称正式化） ====================
+// stock-slide-generator の仕組みを移植。CFPages Function /api/fetch-sources で
+// 野村・日経・株探をサーバー側取得し、証券コード→正式名称（MEIGARA_DICT）に変換。
+
+function autoDictReady(){ return typeof window.MEIGARA_DICT === "object" && window.MEIGARA_DICT; }
+function autoLookupName(code){
+  const d = autoDictReady();
+  if(!d) return null;
+  if(d[code] !== undefined) return d[code];
+  const up = String(code).toUpperCase();
+  return d[up] !== undefined ? d[up] : null;
+}
+// ホールディングス→ＨＤ 等。順序重要（ＦＧ→ＨＤ→Ｇ）
+function autoAbbrevName(name){
+  return String(name)
+    .replace(/フィナンシャルグループ/g, "ＦＧ")
+    .replace(/ホールディングス/g, "ＨＤ")
+    .replace(/グループ/g, "Ｇ");
+}
+// 銘柄名：正式名称（辞書）優先→無ければソース名。最後に略記変換。
+function autoResolveName(code, srcName){
+  const official = code ? autoLookupName(code) : null;
+  return autoAbbrevName(official != null && official !== "" ? official : (srcName || ""));
+}
+// 符号付き文字列に整える（"-" 始まりはそのまま、それ以外は "+" を付与）
+function autoSign(v){
+  const s = String(v == null ? "" : v).trim();
+  if(!s) return "";
+  return /^[−\-]/.test(s) ? s.replace(/^−/, "-") : ("+" + s);
+}
+function autoStripPct(v){ return String(v == null ? "" : v).replace(/[%％]/g, "").trim(); }
+function autoStrip倍(v){ return String(v == null ? "" : v).replace(/[^\d.]/g, ""); }
+
+function autoTodayStr(){
+  const d = new Date();
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
+}
+
+// 取得ソース配列 → key引き
+function autoSrcMap(sources){ const m = {}; (sources||[]).forEach(s => { m[s.key] = s; }); return m; }
+
+// 取得データ → Market Image Generator の TSV テキストを組み立てる
+function buildAutoTSV(sources, meta){
+  const by = autoSrcMap(sources);
+  const idx = (by.nomura_index && by.nomura_index.rows) || [];
+  const rise = (by.nikkei_rise && by.nikkei_rise.rows) || [];
+  const drop = (by.nikkei_drop && by.nikkei_drop.rows) || [];
+  const secTop = (by.kabutan_sector_desc && by.kabutan_sector_desc.rows) || [];
+  const secWorst = (by.kabutan_sector_asc && by.kabutan_sector_asc.rows) || [];
+
+  const nikkei = idx.find(r => r.name === "日経平均") || {};
+  const topix  = idx.find(r => r.name === "TOPIX") || {};
+
+  const lines = [];
+  lines.push("[MARKET]");
+  lines.push("key\tvalue");
+  lines.push(`title\t1分でわかる！今日の株式市場`);
+  lines.push(`date\t${meta.date || autoTodayStr()}`);
+  lines.push(`timing\t${meta.timing || ""}`);
+  lines.push(`nikkei_value\t${(nikkei.value||"").replace(/,/g,"")}`);
+  lines.push(`nikkei_diff\t${nikkei.change||""}`);
+  lines.push(`nikkei_pct\t${autoStripPct(nikkei.pct)}`);
+  lines.push(`topix_value\t${(topix.value||"").replace(/,/g,"")}`);
+  lines.push(`topix_diff\t${topix.change||""}`);
+  lines.push(`topix_pct\t${autoStripPct(topix.pct)}`);
+  lines.push("");
+
+  const moverBlock = (title, rows) => {
+    lines.push(`[${title}]`);
+    lines.push("rank\tname\tpct\tprice\tdiff");
+    rows.slice(0,5).forEach((r,i) => {
+      const name = autoResolveName(r.code, r.name);
+      lines.push(`${i+1}\t${name}\t${autoSign(r.rate)}\t${String(r.price||"").replace(/,/g,"")}\t${autoSign(r.change)}`);
+    });
+    lines.push("");
+  };
+  moverBlock("RISERS", rise);
+  moverBlock("DECLINERS", drop);
+
+  const sectorBlock = (title, rows) => {
+    lines.push(`[${title}]`);
+    lines.push("rank\tsector\tpct\tper");
+    rows.slice(0,5).forEach((r,i) => {
+      lines.push(`${i+1}\t${r.name||""}\t${autoStripPct(r.rate)}\t${autoStrip倍(r.per)}`);
+    });
+    lines.push("");
+  };
+  sectorBlock("SECTOR_TOP", secTop);
+  sectorBlock("SECTOR_WORST", secWorst);
+
+  return lines.join("\n").trim() + "\n";
+}
+
+function autoRenderSourcesSummary(sources){
+  return (sources||[]).map(s => {
+    const dot = s.ok ? '<span style="color:#4ade80">●</span>' : '<span style="color:#f87171">●</span>';
+    const cnt = s.rowCount ? ` ${s.rowCount}行` : "";
+    const warn = s.ok ? "" : ` <span style="color:#f87171">⚠ ${s.error||s.reason||"取得エラー"}</span>`;
+    return `<div>${dot} ${s.label}<span style="color:var(--muted)"> (${s.status||"-"}${cnt})</span>${warn}</div>`;
+  }).join("");
+}
+
 function boot(){
   $("formatSample").textContent = formatSample;
   const input = $("input");
@@ -723,6 +825,71 @@ rank\tsector\tpct\tper
   bindZenba("btnZenbaRank",   "rank");
   bindZenba("btnZenbaNotify", "Notify");
   bindZenba("btnZenbaGrafic", "grafic");
+
+  // ---- タブ切替 ----
+  const switchTab = (name) => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("is-hidden", p.dataset.tab !== name));
+  };
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    b.addEventListener("click", () => switchTab(b.dataset.tab));
+  });
+
+  // ---- 自動取得タブ ----
+  const autoDate = $("autoDate");
+  if(autoDate && !autoDate.value) autoDate.value = autoTodayStr();
+
+  const dictInfo = $("autoDictInfo");
+  if(dictInfo){
+    dictInfo.textContent = (autoDictReady() && window.MEIGARA_META)
+      ? `銘柄辞書：${window.MEIGARA_META.count}銘柄 / 基準日 ${window.MEIGARA_META.date}`
+      : "⚠ 銘柄辞書が読み込めていません（meigara-dict.js）";
+  }
+
+  const setAutoStatus = (kind, msg) => {
+    const el = $("autoStatus");
+    if(!el) return;
+    el.classList.remove("ok","err");
+    if(kind) el.classList.add(kind);
+    el.textContent = msg || "";
+  };
+
+  const autoFetch = async () => {
+    const btn = $("btnAutoFetch");
+    const resultEl = $("autoResult");
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "取得中…";
+    setAutoStatus("", "データ取得中…（野村・日経・株探）");
+    if(resultEl) resultEl.innerHTML = "";
+    try{
+      const res = await fetch("/api/fetch-sources");
+      if(!res.ok) throw new Error("サーバー応答エラー: " + res.status);
+      const data = await res.json();
+      const sources = data.sources || [];
+      const okN = sources.filter(s => s.ok).length;
+      if(resultEl) resultEl.innerHTML = autoRenderSourcesSummary(sources);
+
+      const meta = { date: (autoDate && autoDate.value.trim()) || "", timing: ($("autoTiming") && $("autoTiming").value.trim()) || "" };
+      const tsv = buildAutoTSV(sources, meta);
+
+      // 入力欄に反映＋即プレビュー
+      input.value = tsv;
+      const {errs} = renderFromText(tsv, { hires: $("hiresPreview").checked });
+      setStatus(errs.length ? "err" : "ok", errs.length ? errs.join(" / ") : "OK");
+
+      const errN = sources.length - okN;
+      setAutoStatus(errN>0 ? "err" : "ok", errN>0 ? `⚠ 取得完了（${errN}件エラー・下を確認）／入力欄に反映しました` : "✅ 取得・変換完了。入力欄に反映しました");
+    }catch(e){
+      setAutoStatus("err", "❌ " + (e && e.message ? e.message : e));
+    }finally{
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  };
+
+  const autoBtn = $("btnAutoFetch");
+  if(autoBtn) autoBtn.addEventListener("click", autoFetch);
 }
 
 document.addEventListener("DOMContentLoaded", boot);

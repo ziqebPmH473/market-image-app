@@ -632,13 +632,133 @@ function buildAutoTSV(sources, meta){
   return lines.join("\n").trim() + "\n";
 }
 
-function autoRenderSourcesSummary(sources){
-  return (sources||[]).map(s => {
+// 取得データ → SNS投稿文（AIを使わず data から直接生成。手動タブの「投稿」テンプレ準拠）
+function buildAutoPost(sources, meta){
+  const by = autoSrcMap(sources);
+  const idx = (by.nomura_index && by.nomura_index.rows) || [];
+  const nikkei = idx.find(r => r.name === "日経平均") || {};
+  const topix  = idx.find(r => r.name === "TOPIX") || {};
+
+  // 日付："YYYY/MM/DD" → "M月D日"
+  const dateStr = (() => {
+    const p = String(meta.date || autoTodayStr()).split(/[\/\-.]/);
+    return p.length >= 3 ? `${Number(p[1])}月${Number(p[2])}日` : String(meta.date || "");
+  })();
+
+  const nv = toNumberLoose(nikkei.value), nd = toNumberLoose(nikkei.change);
+  const tv = toNumberLoose(topix.value),  td = toNumberLoose(topix.change);
+  const arrow = (n) => (isFinite(n) && n < 0) ? "📉" : "📈";
+  const valStr = (raw, n) => isFinite(n) ? fmtComma(n, 2) : String(raw || "");
+  const diffStr = (raw, n) => isFinite(n) ? fmtSigned(n, 2) : String(raw || "");
+
+  return [
+    "今日の東証マーケット前場の振り返り速報！",
+    `${dateStr}の値動きサクッと確認👇`,
+    `${arrow(nd)}日経平均：${valStr(nikkei.value, nv)}円（${diffStr(nikkei.change, nd)}円）`,
+    `${arrow(td)}TOPIX：${valStr(topix.value, tv)}（${diffStr(topix.change, td)}）`,
+    "▼1日の総まとめと明日の戦略は、今夜の動画で解説します！",
+    "フォローしてお待ちください",
+    "#日本株 #日経平均 #急騰銘柄",
+  ].join("\n");
+}
+
+function autoEsc(s){ return String(s==null?"":s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+// 各ソースの構造化行を「成型後の人が読める形」に（銘柄名は正式名称＋略記）
+function autoSourceLines(s){
+  const rows = s.rows || [];
+  if(!rows.length) return (s.text || "(データなし)").slice(0, 400);
+  if(s.kind === "index"){
+    return rows.map(r => `${r.name}｜${r.value}｜${r.change}（${r.pct}）`).join("\n");
+  }
+  if(s.kind === "sector"){
+    return rows.slice(0, 12).map(r => `${r.name}　${r.rate}　PER${r.per}`).join("\n");
+  }
+  // ranking（上昇率/下落率）：正式名称に変換して表示
+  return rows.slice(0, 10).map(r => {
+    const nm = autoResolveName(r.code, r.name);
+    return `${r.rank}位　${r.code}　${nm}　${autoSign(r.rate)}%　株価${r.price}　前日比${autoSign(r.change)}`;
+  }).join("\n");
+}
+
+// 取得結果を開いて確認できる<details>群として描画（引用元プログラム準拠）
+function autoRenderSources(sources){
+  sources = sources || [];
+  const anyErr = sources.some(s => !s.ok);
+  const okN = sources.filter(s => s.ok).length;
+  const items = sources.map(s => {
     const dot = s.ok ? '<span style="color:#4ade80">●</span>' : '<span style="color:#f87171">●</span>';
     const cnt = s.rowCount ? ` ${s.rowCount}行` : "";
-    const warn = s.ok ? "" : ` <span style="color:#f87171">⚠ ${s.error||s.reason||"取得エラー"}</span>`;
-    return `<div>${dot} ${s.label}<span style="color:var(--muted)"> (${s.status||"-"}${cnt})</span>${warn}</div>`;
+    const errMsg = s.error || s.reason || "";
+    const warn = s.ok ? "" : ` <span style="color:#f87171">⚠ ${autoEsc(errMsg||"取得エラー")}</span>`;
+    const body = (!s.ok && errMsg ? `<div style="font-size:11px;color:#f87171;margin:4px 0;">⚠ ${autoEsc(errMsg)}</div>` : "")
+      + `<pre>${autoEsc(autoSourceLines(s))}</pre>`;
+    // エラーのソースは開いておく
+    return `<details ${!s.ok ? "open" : ""}>`
+      + `<summary>${dot} ${autoEsc(s.label)} <span style="color:var(--muted)">(${s.status||"-"}${cnt})</span>${warn}</summary>`
+      + body + `</details>`;
   }).join("");
+  return `<details ${anyErr ? "open" : ""}>`
+    + `<summary style="color:${anyErr ? "#f87171" : "var(--muted)"}">`
+    + (anyErr ? `⚠ 取得結果 ${okN}/${sources.length} 件（${sources.length-okN}件エラー・クリックで確認）` : `取得結果 ${okN}/${sources.length} 件 正常（クリックで各データを確認）`)
+    + `</summary>${items}</details>`;
+}
+
+// ==================== 銘柄辞書：Excel/CSV 取込＆保存（引用元プログラム準拠） ====================
+const MIA_PREFIX = "mia_";
+
+// ブラウザに保存済みの取込辞書があれば同梱版より優先
+function autoLoadCustomDict(){
+  try{
+    const d = localStorage.getItem(MIA_PREFIX + "meigara_dict");
+    if(d){
+      window.MEIGARA_DICT = JSON.parse(d);
+      const m = localStorage.getItem(MIA_PREFIX + "meigara_meta");
+      if(m) window.MEIGARA_META = JSON.parse(m);
+    }
+  }catch(e){}
+}
+
+// 東証data_j（Excel .xls/.xlsx/.xlsm または CSV/Shift-JIS）を取り込んで辞書を更新
+function autoImportMeigaraCsv(input, done){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const isExcel = /\.(xlsx?|xlsm)$/i.test(file.name);
+  const r = new FileReader();
+  r.onload = (e) => {
+    try{
+      let rows; // [ [col0, col1, col2, ...], ... ]
+      if(isExcel){
+        if(typeof XLSX === "undefined"){ alert("Excel読込ライブラリが読み込めていません。CSVでお試しください。"); input.value=""; return; }
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      }else{
+        let text;
+        try{ text = new TextDecoder("shift_jis").decode(e.target.result); }
+        catch(_){ text = new TextDecoder("utf-8").decode(e.target.result); }
+        rows = text.split(/\r?\n/).filter(l => l.trim()).map(l => l.split(","));
+      }
+      const map = {}; let cnt = 0;
+      // data_j 列: [0]日付 [1]コード [2]銘柄名 …
+      for(let i=1;i<rows.length;i++){
+        const code = String((rows[i] && rows[i][1]) || "").trim();
+        const name = String((rows[i] && rows[i][2]) || "").trim();
+        if(!code || !name) continue;
+        map[code] = name; cnt++;
+      }
+      if(cnt < 1000){ alert("銘柄が少なすぎます（"+cnt+"件）。東証data_j（銘柄一覧）のファイルか確認してください。"); input.value=""; return; }
+      const date = String((rows[1] && rows[1][0]) || "").trim();
+      window.MEIGARA_DICT = map;
+      window.MEIGARA_META = { source: isExcel ? "取込Excel" : "取込CSV", date, count: cnt };
+      localStorage.setItem(MIA_PREFIX + "meigara_dict", JSON.stringify(map));
+      localStorage.setItem(MIA_PREFIX + "meigara_meta", JSON.stringify(window.MEIGARA_META));
+      if(typeof done === "function") done();
+      alert("銘柄一覧を更新しました（"+cnt+"件 / 基準日 "+date+"）。");
+    }catch(err){ alert("取込に失敗: " + err.message); }
+    finally{ input.value = ""; }
+  };
+  r.readAsArrayBuffer(file);
 }
 
 function boot(){
@@ -839,12 +959,25 @@ rank\tsector\tpct\tper
   const autoDate = $("autoDate");
   if(autoDate && !autoDate.value) autoDate.value = autoTodayStr();
 
-  const dictInfo = $("autoDictInfo");
-  if(dictInfo){
+  // ブラウザ保存済みの取込辞書があれば優先読込
+  autoLoadCustomDict();
+
+  const refreshDictInfo = () => {
+    const dictInfo = $("autoDictInfo");
+    if(!dictInfo) return;
     dictInfo.textContent = (autoDictReady() && window.MEIGARA_META)
       ? `銘柄辞書：${window.MEIGARA_META.count}銘柄 / 基準日 ${window.MEIGARA_META.date}`
       : "⚠ 銘柄辞書が読み込めていません（meigara-dict.js）";
-  }
+  };
+  refreshDictInfo();
+
+  // 銘柄一覧 Excel/CSV 取込
+  const meigaraFile = $("autoMeigaraFile");
+  if(meigaraFile) meigaraFile.addEventListener("change", () => autoImportMeigaraCsv(meigaraFile, refreshDictInfo));
+
+  // 画像保存（プレビューと同じPNG出力）
+  const autoDownload = $("btnAutoDownload");
+  if(autoDownload) autoDownload.addEventListener("click", downloadPNG);
 
   const setAutoStatus = (kind, msg) => {
     const el = $("autoStatus");
@@ -868,7 +1001,7 @@ rank\tsector\tpct\tper
       const data = await res.json();
       const sources = data.sources || [];
       const okN = sources.filter(s => s.ok).length;
-      if(resultEl) resultEl.innerHTML = autoRenderSourcesSummary(sources);
+      if(resultEl) resultEl.innerHTML = autoRenderSources(sources);
 
       const meta = { date: (autoDate && autoDate.value.trim()) || "", timing: ($("autoTiming") && $("autoTiming").value.trim()) || "" };
       const tsv = buildAutoTSV(sources, meta);
@@ -877,6 +1010,10 @@ rank\tsector\tpct\tper
       input.value = tsv;
       const {errs} = renderFromText(tsv, { hires: $("hiresPreview").checked });
       setStatus(errs.length ? "err" : "ok", errs.length ? errs.join(" / ") : "OK");
+
+      // 投稿文も生成
+      const postEl = $("autoPostText");
+      if(postEl){ postEl.value = buildAutoPost(sources, meta); }
 
       const errN = sources.length - okN;
       setAutoStatus(errN>0 ? "err" : "ok", errN>0 ? `⚠ 取得完了（${errN}件エラー・下を確認）／入力欄に反映しました` : "✅ 取得・変換完了。入力欄に反映しました");
@@ -890,6 +1027,43 @@ rank\tsector\tpct\tper
 
   const autoBtn = $("btnAutoFetch");
   if(autoBtn) autoBtn.addEventListener("click", autoFetch);
+
+  // 投稿文コピー
+  const setAutoPostStatus = (kind, msg) => {
+    const el = $("autoPostStatus");
+    if(!el) return;
+    el.classList.remove("ok","err");
+    if(kind) el.classList.add(kind);
+    el.textContent = msg || "";
+  };
+  const autoPostCopy = $("btnAutoPostCopy");
+  if(autoPostCopy) autoPostCopy.addEventListener("click", async () => {
+    const text = ($("autoPostText") && $("autoPostText").value) || "";
+    if(!text.trim()){ setAutoPostStatus("err", "投稿文がありません（先にデータ取得してください）"); return; }
+    const execFallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand("copy"); ta.remove();
+      return ok;
+    };
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(text);
+      }else if(!execFallback()){
+        throw new Error("execCommand failed");
+      }
+      setAutoPostStatus("ok", "投稿文をコピーしました");
+    }catch(e){
+      // クリップボードAPIが拒否されたら execCommand で再試行
+      try{
+        if(execFallback()) setAutoPostStatus("ok", "投稿文をコピーしました");
+        else setAutoPostStatus("err", "コピーに失敗しました。テキストを手動で選択してコピーしてください。");
+      }catch(_){
+        setAutoPostStatus("err", "コピーに失敗しました。テキストを手動で選択してコピーしてください。");
+      }
+    }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", boot);

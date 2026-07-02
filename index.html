@@ -14,13 +14,13 @@
   </header>
 
   <nav class="tabs">
-    <button id="tabBtnManual" class="tab-btn active" data-tab="manual">手動（TSV貼付）</button>
-    <button id="tabBtnAuto"   class="tab-btn" data-tab="auto">自動取得（URL→正式化）</button>
+    <button id="tabBtnAuto"   class="tab-btn active" data-tab="auto">自動取得（URL→正式化）</button>
+    <button id="tabBtnManual" class="tab-btn" data-tab="manual">手動（TSV貼付）</button>
   </nav>
 
   <main class="app-main">
     <!-- ===== 手動タブ ===== -->
-    <section class="panel morning-panel tab-panel" data-tab="manual">
+    <section class="panel morning-panel tab-panel is-hidden" data-tab="manual">
       <div class="panel-head">
         <div class="panel-title">前場プロンプト</div>
         <div class="panel-actions">
@@ -37,7 +37,7 @@
     </section>
 
     <!-- ===== 自動取得タブ ===== -->
-    <section class="panel auto-panel tab-panel is-hidden" data-tab="auto">
+    <section class="panel auto-panel tab-panel" data-tab="auto">
       <div class="panel-head">
         <div class="panel-title">自動取得（野村・日経・株探）</div>
         <div class="panel-actions">
@@ -55,13 +55,26 @@
             <input id="autoTiming" type="text" placeholder="前引け" value="前引け" />
           </label>
         </div>
-        <div class="hint" style="padding:0">
-          ボタンを押すと8URL相当のデータをサーバー経由で取得し、証券コードから正式名称に変換（ホールディングス→ＨＤ 等）して入力欄に反映＋即プレビューします。
+        <div class="auto-dict-row">
+          <div id="autoDictInfo" class="auto-dict"></div>
+          <label class="btn auto-import">📁 Excel/CSV取込<input id="autoMeigaraFile" type="file" accept=".xls,.xlsx,.xlsm,.csv" style="display:none" /></label>
         </div>
-        <div id="autoDictInfo" class="auto-dict"></div>
+        <div class="hint" style="padding:0">
+          JPXの最新data_j（Excel .xls/.xlsx またはCSV）を取り込むと銘柄辞書を更新します（ブラウザに保存・次回以降有効）。
+        </div>
       </div>
       <div id="autoStatus" class="status"></div>
       <div id="autoResult" class="auto-result"></div>
+
+      <div class="panel-head" style="border-top:1px solid var(--border)">
+        <div class="panel-title">投稿文（SNS）</div>
+        <div class="panel-actions">
+          <button id="btnAutoDownload" class="btn">画像保存</button>
+          <button id="btnAutoPostCopy" class="btn primary">投稿文コピー</button>
+        </div>
+      </div>
+      <textarea id="autoPostText" spellcheck="false" style="min-height:170px"></textarea>
+      <div id="autoPostStatus" class="status"></div>
     </section>
 
     <section class="panel preview-panel">
@@ -82,7 +95,7 @@
       </div>
     </section>
 
-    <section class="panel tab-panel" data-tab="manual">
+    <section class="panel tab-panel is-hidden" data-tab="manual">
       <div class="panel-head">
         <div class="panel-title">入力（TSV＋[SECTION]）</div>
         <div class="panel-actions">
@@ -103,6 +116,7 @@
     </section>
   </main>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="meigara-dict.js"></script>
   <script src="app.js"></script>
 

@@ -538,7 +538,7 @@ async function downloadPNG(){
 }
 
 // ----- ズーム動画（Instagram用）：画像1枚を、ゆっくり寄る mp4 にする（kessan-tool のリール動画と同じ作り） -----
-const REEL_SEC = 7, REEL_FPS = 60, REEL_ZOOM = 0.05;   // 長さ（秒）・コマ数・最後に何割大きくするか
+const REEL_SEC = 7, REEL_FPS = 60, REEL_ZOOM = 0.03;   // 長さ（秒）・コマ数・最後に何割大きくするか
 let _mediabunny = null;
 function loadMediabunny(){
   return _mediabunny || (_mediabunny = import("https://cdn.jsdelivr.net/npm/mediabunny@1.59.0/+esm").catch(e => {

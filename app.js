@@ -482,45 +482,37 @@ function renderFromText(text, options={}){
   return {model, errs, parsed};
 }
 
-async function downloadPNG(){
-  // Always export at 2160 for crispness (2x).
-  const tmp = document.createElement("canvas");
-  tmp.width = 1080; tmp.height = 1080;
-  const ctx = tmp.getContext("2d");
-
+// 入力欄の内容から 1080×1080 のカードを描いた canvas を作る（エラー時は null）
+function buildExportCanvas(){
   const parsed = parseTSVBlocks($("input").value);
   const model = buildModel(parsed);
   const errs = validateModel(model);
   if(errs.length){
     setStatus("err", "保存できません: " + errs.join(" / "));
-    return;
+    return null;
   }
-  drawCard(ctx, 1080, 1080, model);
+  const tmp = document.createElement("canvas");
+  tmp.width = 1080; tmp.height = 1080;
+  drawCard(tmp.getContext("2d"), 1080, 1080, model);
+  return {canvas: tmp, model};
+}
 
-  const blob = await new Promise(res => tmp.toBlob(res, "image/png"));
-  if(!blob){
-    setStatus("err", "PNG生成に失敗しました");
-    return;
-  }
+function exportBaseName(model){
+  const d = (model.date || "").replaceAll("/","");
+  const t = model.timing ? (model.timing.includes("前") ? "am" : "pm") : "";
+  return `market_${d || "date"}_${t || "snap"}`;
+}
 
-  const filename = (() => {
-    const d = (model.date || "").replaceAll("/","");
-    const t = model.timing ? (model.timing.includes("前") ? "am" : "pm") : "";
-    return `market_${d || "date"}_${t || "snap"}.png`;
-  })();
-
-  // Web Share (mobile only)
+// モバイルは共有メニュー、それ以外はダウンロード。共有できたら true
+async function saveBlob(blob, filename){
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  const file = new File([blob], filename, {type:"image/png"});
+  const file = new File([blob], filename, {type: blob.type});
   if(isMobile && navigator.canShare && navigator.canShare({files:[file]})){
     try{
       await navigator.share({files:[file], title: filename});
-      setStatus("ok", "共有メニューを開きました");
-      return;
+      return true;
     }catch(_){}
   }
-
-  // Fallback: download link
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -528,8 +520,80 @@ async function downloadPNG(){
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2500);
-  setStatus("ok", "PNGを書き出しました");
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return false;
+}
+
+async function downloadPNG(){
+  const built = buildExportCanvas();
+  if(!built) return;
+
+  const blob = await new Promise(res => built.canvas.toBlob(res, "image/png"));
+  if(!blob){
+    setStatus("err", "PNG生成に失敗しました");
+    return;
+  }
+  const shared = await saveBlob(blob, `${exportBaseName(built.model)}.png`);
+  setStatus("ok", shared ? "共有メニューを開きました" : "PNGを書き出しました");
+}
+
+// ----- ズーム動画（Instagram用）：画像1枚を、ゆっくり寄る mp4 にする（kessan-tool のリール動画と同じ作り） -----
+const REEL_SEC = 7, REEL_FPS = 60, REEL_ZOOM = 0.05;   // 長さ（秒）・コマ数・最後に何割大きくするか
+let _mediabunny = null;
+function loadMediabunny(){
+  return _mediabunny || (_mediabunny = import("https://cdn.jsdelivr.net/npm/mediabunny@1.59.0/+esm").catch(e => {
+    _mediabunny = null;
+    throw new Error("動画の部品を読み込めませんでした（通信を確認してください）");
+  }));
+}
+
+// 縦長（1080×1920）の1コマ：画像を真ん中に置き、上下はカードの背景色で埋める
+function toPortraitCanvas(card){
+  const cv = document.createElement("canvas");
+  cv.width = 1080; cv.height = 1920;
+  const cx = cv.getContext("2d");
+  cx.fillStyle = "#f5f2e8";
+  cx.fillRect(0, 0, cv.width, cv.height);
+  cx.drawImage(card, (cv.width - card.width)/2, (cv.height - card.height)/2);
+  return cv;
+}
+
+// portrait=true で縦長（1080×1920）、false で正方形（1080×1080）
+async function downloadReel(btn, onStatus, portrait){
+  const built = buildExportCanvas();
+  if(!built){ onStatus("err", "入力データが不足しているため動画を作れません"); return; }
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "作成中…";
+  try{
+    const M = await loadMediabunny();
+    const img = portrait ? toPortraitCanvas(built.canvas) : built.canvas;
+    const W = img.width, H = img.height;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const cx = cv.getContext("2d");
+    cx.imageSmoothingQuality = "high";
+    const output = new M.Output({format: new M.Mp4OutputFormat(), target: new M.BufferTarget()});
+    const src = new M.CanvasSource(cv, {codec: "avc", bitrate: M.QUALITY_HIGH});
+    output.addVideoTrack(src, {frameRate: REEL_FPS});
+    await output.start();
+    const N = REEL_SEC * REEL_FPS;
+    for(let i=0;i<N;i++){
+      const k = 1 + REEL_ZOOM * (i/(N-1)), w = W*k, h = H*k;   // 真ん中を中心に、一定の速さで寄る
+      cx.drawImage(img, (W-w)/2, (H-h)/2, w, h);
+      await src.add(i/REEL_FPS, 1/REEL_FPS);
+      if(i % 60 === 0) btn.textContent = `作成中…${Math.round(i/N*100)}%`;
+    }
+    await output.finalize();
+    const blob = new Blob([output.target.buffer], {type: "video/mp4"});
+    const shared = await saveBlob(blob, `${exportBaseName(built.model)}${portrait ? "_9x16" : ""}.mp4`);
+    onStatus("ok", shared ? "共有メニューを開きました" : `${portrait ? "縦長" : "正方形"}の動画（${REEL_SEC}秒・mp4）を書き出しました`);
+  }catch(e){
+    onStatus("err", "動画を作れませんでした: " + (e && e.message ? e.message : e));
+  }finally{
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 function setStatus(kind, msg){
@@ -1036,9 +1100,15 @@ rank\tsector\tpct\tper
     if(kind) el.classList.add(kind);
     el.textContent = msg || "";
   };
-  const autoPostCopy = $("btnAutoPostCopy");
-  if(autoPostCopy) autoPostCopy.addEventListener("click", async () => {
-    const text = ($("autoPostText") && $("autoPostText").value) || "";
+  // 投稿文を「冒頭の1文（1行目）」と「本文（2行目以降）」に分ける（TikTok用）
+  const splitPost = () => {
+    const lines = normalizeNewlines(($("autoPostText") && $("autoPostText").value) || "").split("\n");
+    const i = lines.findIndex(l => l.trim());
+    if(i < 0) return {head: "", body: ""};
+    return {head: lines[i].trim(), body: lines.slice(i+1).join("\n").trim()};
+  };
+  const copyPost = async (getText, doneMsg) => {
+    const text = getText();
     if(!text.trim()){ setAutoPostStatus("err", "投稿文がありません（先にデータ取得してください）"); return; }
     const execFallback = () => {
       const ta = document.createElement("textarea");
@@ -1053,17 +1123,30 @@ rank\tsector\tpct\tper
       }else if(!execFallback()){
         throw new Error("execCommand failed");
       }
-      setAutoPostStatus("ok", "投稿文をコピーしました");
+      setAutoPostStatus("ok", doneMsg);
     }catch(e){
       // クリップボードAPIが拒否されたら execCommand で再試行
       try{
-        if(execFallback()) setAutoPostStatus("ok", "投稿文をコピーしました");
+        if(execFallback()) setAutoPostStatus("ok", doneMsg);
         else setAutoPostStatus("err", "コピーに失敗しました。テキストを手動で選択してコピーしてください。");
       }catch(_){
         setAutoPostStatus("err", "コピーに失敗しました。テキストを手動で選択してコピーしてください。");
       }
     }
-  });
+  };
+  const bindCopy = (id, getText, doneMsg) => {
+    const b = $(id);
+    if(b) b.addEventListener("click", () => copyPost(getText, doneMsg));
+  };
+  bindCopy("btnAutoPostCopy", () => ($("autoPostText") && $("autoPostText").value) || "", "投稿文をコピーしました");
+  bindCopy("btnAutoPostHead", () => splitPost().head, "冒頭の1文をコピーしました");
+  bindCopy("btnAutoPostBody", () => splitPost().body, "本文（2行目以降）をコピーしました");
+
+  // ズーム動画（Instagram用）
+  const autoReel = $("btnAutoReel");
+  if(autoReel) autoReel.addEventListener("click", () => downloadReel(autoReel, setAutoPostStatus, false));
+  const autoReelV = $("btnAutoReelV");
+  if(autoReelV) autoReelV.addEventListener("click", () => downloadReel(autoReelV, setAutoPostStatus, true));
 }
 
 document.addEventListener("DOMContentLoaded", boot);

@@ -524,17 +524,21 @@ async function saveBlob(blob, filename){
   return false;
 }
 
-async function downloadPNG(){
+// tall=true で 3:4（1080×1440・Instagram／TikTokの画像投稿用）、false で正方形（1080×1080）
+async function downloadPNG(tall, onStatus){
+  tall = tall === true;                       // クリックイベントが渡ってきても正方形のまま
+  const report = (kind, msg) => { setStatus(kind, msg); if(onStatus) onStatus(kind, msg); };
   const built = buildExportCanvas();
-  if(!built) return;
+  if(!built){ if(onStatus) onStatus("err", "入力データが不足しているため画像を作れません"); return; }
 
-  const blob = await new Promise(res => built.canvas.toBlob(res, "image/png"));
+  const cv = tall ? toTallCanvas(built.canvas, 1440) : built.canvas;
+  const blob = await new Promise(res => cv.toBlob(res, "image/png"));
   if(!blob){
-    setStatus("err", "PNG生成に失敗しました");
+    report("err", "PNG生成に失敗しました");
     return;
   }
-  const shared = await saveBlob(blob, `${exportBaseName(built.model)}.png`);
-  setStatus("ok", shared ? "共有メニューを開きました" : "PNGを書き出しました");
+  const shared = await saveBlob(blob, `${exportBaseName(built.model)}${tall ? "_3x4" : ""}.png`);
+  report("ok", shared ? "共有メニューを開きました" : (tall ? "3:4（1080×1440）のPNGを書き出しました" : "PNGを書き出しました"));
 }
 
 // ----- ズーム動画（Instagram用）：画像1枚を、ゆっくり寄る mp4 にする（kessan-tool のリール動画と同じ作り） -----
@@ -547,10 +551,10 @@ function loadMediabunny(){
   }));
 }
 
-// 縦長（1080×1920）の1コマ：画像を真ん中に置き、上下はカードの背景色で埋める
-function toPortraitCanvas(card){
+// 縦長の1コマ：画像を真ん中に置き、上下はカードの背景色で埋める（高さ1920で9:16、1440で3:4）
+function toTallCanvas(card, height){
   const cv = document.createElement("canvas");
-  cv.width = 1080; cv.height = 1920;
+  cv.width = 1080; cv.height = height;
   const cx = cv.getContext("2d");
   cx.fillStyle = "#f5f2e8";
   cx.fillRect(0, 0, cv.width, cv.height);
@@ -567,7 +571,7 @@ async function downloadReel(btn, onStatus, portrait){
   btn.textContent = "作成中…";
   try{
     const M = await loadMediabunny();
-    const img = portrait ? toPortraitCanvas(built.canvas) : built.canvas;
+    const img = portrait ? toTallCanvas(built.canvas, 1920) : built.canvas;
     const W = img.width, H = img.height;
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
@@ -880,7 +884,9 @@ function boot(){
   if(btnPaste) btnPaste.addEventListener("click", () => { doPaste(); });
   $("hiresPreview").addEventListener("change", doRender);
 
-  $("btnDownload").addEventListener("click", downloadPNG);
+  $("btnDownload").addEventListener("click", () => downloadPNG(false));
+  const downloadV = $("btnDownloadV");
+  if(downloadV) downloadV.addEventListener("click", () => downloadPNG(true));
 
   // auto render on paste with debounce
   let t = null;
@@ -1041,7 +1047,9 @@ rank\tsector\tpct\tper
 
   // 画像保存（プレビューと同じPNG出力）
   const autoDownload = $("btnAutoDownload");
-  if(autoDownload) autoDownload.addEventListener("click", downloadPNG);
+  if(autoDownload) autoDownload.addEventListener("click", () => downloadPNG(false));
+  const autoDownloadV = $("btnAutoDownloadV");
+  if(autoDownloadV) autoDownloadV.addEventListener("click", () => downloadPNG(true, setAutoPostStatus));
 
   const setAutoStatus = (kind, msg) => {
     const el = $("autoStatus");

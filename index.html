@@ -52,8 +52,13 @@
           </label>
           <label class="auto-field">
             <span>タイミング</span>
-            <input id="autoTiming" type="text" placeholder="前引け" value="前引け" />
+            <select id="autoTiming" title="自動：取得した時刻（日本時間）で判定。15:30より前は「前引け」、15:30以降と土日・朝9時前は「引け後」">
+              <option value="auto" selected>自動</option>
+              <option value="前引け">前引け</option>
+              <option value="引け後">引け後</option>
+            </select>
           </label>
+          <span id="autoTimingInfo" class="auto-timing-info"></span>
         </div>
         <div class="auto-dict-row">
           <div id="autoDictInfo" class="auto-dict"></div>

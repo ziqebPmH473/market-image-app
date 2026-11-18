@@ -53,7 +53,8 @@ body{
 .auto-row{display:flex;gap:10px;flex-wrap:nowrap;margin-bottom:10px}
 .auto-field{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex:0 0 auto}
 .auto-field span{white-space:nowrap}
-.auto-field input{
+.auto-field input,
+.auto-field select{
   background: rgba(2,6,23,.6);
   color:var(--text);
   border:1px solid var(--border);
@@ -63,6 +64,8 @@ body{
   width:112px;
 }
 .auto-field:first-child input{width:120px}
+.auto-field select{width:auto}
+.auto-timing-info{align-self:center;font-size:11px;color:var(--muted);white-space:nowrap}
 .auto-dict-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
 .auto-dict{color:var(--muted);font-size:11px}
 .auto-import{cursor:pointer;font-size:12px;white-space:nowrap}

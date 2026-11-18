@@ -641,8 +641,25 @@ function autoStripPct(v){ return String(v == null ? "" : v).replace(/[%％]/g, "
 function autoStrip倍(v){ return String(v == null ? "" : v).replace(/[^\d.]/g, ""); }
 
 function autoTodayStr(){
-  const d = new Date();
-  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
+  return autoSession().date;
+}
+
+// 取得時刻（日本時間）から「前引け／引け後」と対象日を判定する
+// ・平日 9:00〜15:30 → 前引け（当日）
+// ・平日 15:30以降   → 引け後（当日）
+// ・平日 9:00前／土日 → 引け後（直前の平日。祝日は考慮しない）
+function autoSession(now){
+  const jst = new Date((now || new Date()).getTime() + 9*3600*1000); // UTCフィールドでJSTを扱う
+  const mins = jst.getUTCHours()*60 + jst.getUTCMinutes();
+  const dow = jst.getUTCDay();
+  const fmt = (d) => `${d.getUTCFullYear()}/${String(d.getUTCMonth()+1).padStart(2,"0")}/${String(d.getUTCDate()).padStart(2,"0")}`;
+  const weekday = dow >= 1 && dow <= 5;
+  if(weekday && mins >= 9*60){
+    return { timing: mins < 15*60+30 ? "前引け" : "引け後", date: fmt(jst) };
+  }
+  const d = new Date(jst);
+  do{ d.setUTCDate(d.getUTCDate() - 1); }while(d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return { timing: "引け後", date: fmt(d) };
 }
 
 // 取得ソース配列 → key引き
@@ -719,12 +736,13 @@ function buildAutoPost(sources, meta){
   const valStr = (raw, n) => isFinite(n) ? fmtComma(n, 2) : String(raw || "");
   const diffStr = (raw, n) => isFinite(n) ? fmtSigned(n, 2) : String(raw || "");
 
+  const isClose = String(meta.timing || "").includes("引け後");
   return [
-    "今日の東証マーケット前場の振り返り速報！",
+    isClose ? "今日の東証マーケット大引けの振り返り速報！" : "今日の東証マーケット前場の振り返り速報！",
     `${dateStr}の値動きサクッと確認👇`,
     `${arrow(nd)}日経平均：${valStr(nikkei.value, nv)}円（${diffStr(nikkei.change, nd)}円）`,
     `${arrow(td)}TOPIX：${valStr(topix.value, tv)}（${diffStr(topix.change, td)}）`,
-    "▼1日の総まとめと明日の戦略は、今夜の動画で解説します！",
+    isClose ? "▼1日の総まとめと明日の戦略は、動画で解説します！" : "▼1日の総まとめと明日の戦略は、今夜の動画で解説します！",
     "フォローしてお待ちください",
     "#日本株 #日経平均 #急騰銘柄",
   ].join("\n");
@@ -1027,7 +1045,29 @@ rank\tsector\tpct\tper
 
   // ---- 自動取得タブ ----
   const autoDate = $("autoDate");
-  if(autoDate && !autoDate.value) autoDate.value = autoTodayStr();
+  const autoTimingSel = $("autoTiming");
+  // 日付は手で書き換えない限り、取得時刻に合わせて自動更新する
+  let autoDateFilled = "";
+  const applySession = () => {
+    const ses = autoSession();
+    if(autoDate && (!autoDate.value.trim() || autoDate.value.trim() === autoDateFilled)){
+      autoDate.value = ses.date;
+      autoDateFilled = ses.date;
+    }
+    const info = $("autoTimingInfo");
+    if(info){
+      info.textContent = (autoTimingSel && autoTimingSel.value === "auto") ? `→ ${ses.timing}` : "";
+    }
+    return ses;
+  };
+  const currentTiming = () => {
+    const ses = applySession();
+    const v = autoTimingSel ? autoTimingSel.value : "auto";
+    return v === "auto" ? ses.timing : v;
+  };
+  applySession();
+  if(autoTimingSel) autoTimingSel.addEventListener("change", applySession);
+  setInterval(applySession, 60*1000); // 開きっぱなしでも表示を追従
 
   // ブラウザ保存済みの取込辞書があれば優先読込
   autoLoadCustomDict();
@@ -1075,7 +1115,8 @@ rank\tsector\tpct\tper
       const okN = sources.filter(s => s.ok).length;
       if(resultEl) resultEl.innerHTML = autoRenderSources(sources);
 
-      const meta = { date: (autoDate && autoDate.value.trim()) || "", timing: ($("autoTiming") && $("autoTiming").value.trim()) || "" };
+      const timing = currentTiming();
+      const meta = { date: (autoDate && autoDate.value.trim()) || "", timing };
       const tsv = buildAutoTSV(sources, meta);
 
       // 入力欄に反映＋即プレビュー
@@ -1088,7 +1129,7 @@ rank\tsector\tpct\tper
       if(postEl){ postEl.value = buildAutoPost(sources, meta); }
 
       const errN = sources.length - okN;
-      setAutoStatus(errN>0 ? "err" : "ok", errN>0 ? `⚠ 取得完了（${errN}件エラー・下を確認）／入力欄に反映しました` : "✅ 取得・変換完了。入力欄に反映しました");
+      setAutoStatus(errN>0 ? "err" : "ok", errN>0 ? `⚠ 取得完了（${errN}件エラー・下を確認）／入力欄に反映しました` : "✅ 取得・変換完了（${meta.date} ${timing}）。入力欄に反映しました");
     }catch(e){
       setAutoStatus("err", "❌ " + (e && e.message ? e.message : e));
     }finally{

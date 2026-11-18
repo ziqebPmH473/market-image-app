@@ -183,19 +183,50 @@ function drawRoundedRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
+// ----- 画像内の文字のフォント -----
+// 端末のフォントに依存させないため、index.html で Google Fonts から配信している Noto Sans JP だけで描く。
+// Canvas は CSS を継承しないので、ctx.font は必ずこの定数で指定する。
+const IMG_FONT_FAMILY = "Noto Sans JP";
+const IMG_FONT = `"${IMG_FONT_FAMILY}", sans-serif`;
+const IMG_FONT_WEIGHTS = ["400", "800", "900"];   // drawCard で使っているウェイト（index.html の読み込みと揃える）
+
+// カードに描く文字を集める（日本語フォントは文字ごとに分割配信されるため、使う文字を指定して読み込む）
+function collectCardText(model){
+  const chars = new Set("…0123456789+-.,%");
+  const probe = document.createElement("canvas").getContext("2d");
+  const add = (t) => { for(const ch of String(t == null ? "" : t)) chars.add(ch); };
+  const fill = probe.fillText.bind(probe), measure = probe.measureText.bind(probe);
+  probe.fillText = (t, ...a) => { add(t); return fill(t, ...a); };
+  probe.measureText = (t) => { add(t); return measure(t); };
+  drawCard(probe, 1080, 1080, model);
+  return [...chars].join("");
+}
+
+// 使う全ウェイト・全文字のフォントを読み込み終えるまで待つ。揃ったら true
+async function ensureImageFonts(model){
+  if(!document.fonts || !document.fonts.load) return false;
+  const text = collectCardText(model);
+  try{
+    await Promise.all(IMG_FONT_WEIGHTS.map(w => document.fonts.load(`${w} 16px "${IMG_FONT_FAMILY}"`, text)));
+    await document.fonts.ready;
+  }catch(_){}
+  return IMG_FONT_WEIGHTS.every(w => document.fonts.check(`${w} 16px "${IMG_FONT_FAMILY}"`, text));
+}
+const IMG_FONT_WARN = "画像用フォント（Noto Sans JP）を読み込めませんでした。通信を確認してから、もう一度お試しください";
+
 // Fit text by shrinking font size down to minPx, else ellipsize
 function drawFitText(ctx, text, x, y, maxW, fontPx, minPx, style, align="left"){
   let size = fontPx;
   ctx.textAlign = align;
   ctx.textBaseline = "alphabetic";
   while(size >= minPx){
-    ctx.font = `${style} ${size}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.font = `${style} ${size}px ${IMG_FONT}`;
     const w = ctx.measureText(text).width;
     if(w <= maxW) break;
     size -= 1;
   }
   if(size < minPx){
-    ctx.font = `${style} ${minPx}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.font = `${style} ${minPx}px ${IMG_FONT}`;
     text = ellipsizeToFit(ctx, text, maxW);
   }
   ctx.fillText(text, x, y);
@@ -265,7 +296,7 @@ function drawCard(ctx, W, H, model){
   ctx.fillStyle = "#000000";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `${140*s}px "Noto Sans JP", system-ui, sans-serif`;
+  ctx.font = `400 ${140*s}px ${IMG_FONT}`;
   ctx.fillText("@sumikko_money", 0, 0);
   ctx.restore();
 
@@ -374,7 +405,7 @@ function drawCard(ctx, W, H, model){
     const diffStr = isFinite(dn) ? fmtSigned(dn, 0) : diff;
 
     // Measure to center "前日比 " + diffStr as a whole
-    ctx.font = `${900} ${18*s}px "Noto Sans JP", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.font = `${900} ${18*s}px ${IMG_FONT}`;
     const labelPart = "前日比 ";
     const wLabel = ctx.measureText(labelPart).width;
     const wValue = ctx.measureText(diffStr).width;
@@ -479,17 +510,29 @@ function renderFromText(text, options={}){
   }
   drawCard(ctx, target, target, model);
 
+  // フォントの読み込みが済んでいなければ、済んだあとで描き直す（古い描画依頼は捨てる）
+  const token = ++_renderToken;
+  ensureImageFonts(model).then(() => {
+    if(token === _renderToken) drawCard(ctx, canvas.width, canvas.height, model);
+  });
+
   return {model, errs, parsed};
 }
+let _renderToken = 0;
 
 // 入力欄の内容から 1080×1080 のカードを描いた canvas を作る（エラー時は null）
-function buildExportCanvas(){
+// 書き出し用なので、フォントの読み込み完了を待ってから描く
+async function buildExportCanvas(){
   const parsed = parseTSVBlocks($("input").value);
   const model = buildModel(parsed);
   const errs = validateModel(model);
   if(errs.length){
     setStatus("err", "保存できません: " + errs.join(" / "));
     return null;
+  }
+  if(!(await ensureImageFonts(model))){
+    setStatus("err", IMG_FONT_WARN);
+    return {error: IMG_FONT_WARN};
   }
   const tmp = document.createElement("canvas");
   tmp.width = 1080; tmp.height = 1080;
@@ -528,8 +571,9 @@ async function saveBlob(blob, filename){
 async function downloadPNG(tall, onStatus){
   tall = tall === true;                       // クリックイベントが渡ってきても正方形のまま
   const report = (kind, msg) => { setStatus(kind, msg); if(onStatus) onStatus(kind, msg); };
-  const built = buildExportCanvas();
+  const built = await buildExportCanvas();
   if(!built){ if(onStatus) onStatus("err", "入力データが不足しているため画像を作れません"); return; }
+  if(built.error){ if(onStatus) onStatus("err", built.error); return; }
 
   const cv = tall ? toTallCanvas(built.canvas, 1440) : built.canvas;
   const blob = await new Promise(res => cv.toBlob(res, "image/png"));
@@ -564,12 +608,13 @@ function toTallCanvas(card, height){
 
 // portrait=true で縦長（1080×1920）、false で正方形（1080×1080）
 async function downloadReel(btn, onStatus, portrait){
-  const built = buildExportCanvas();
-  if(!built){ onStatus("err", "入力データが不足しているため動画を作れません"); return; }
   const label = btn.textContent;
   btn.disabled = true;
   btn.textContent = "作成中…";
   try{
+    const built = await buildExportCanvas();
+    if(!built){ onStatus("err", "入力データが不足しているため動画を作れません"); return; }
+    if(built.error){ onStatus("err", built.error); return; }
     const M = await loadMediabunny();
     const img = portrait ? toTallCanvas(built.canvas, 1920) : built.canvas;
     const W = img.width, H = img.height;

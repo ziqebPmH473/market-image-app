@@ -1195,7 +1195,7 @@ rank\tsector\tpct\tper
       if(postEl){ postEl.value = buildAutoPost(sources, meta); }
 
       const errN = sources.length - okN;
-      setAutoStatus(errN>0 ? "err" : "ok", errN>0 ? `⚠ 取得完了（${errN}件エラー・下を確認）／入力欄に反映しました` : "✅ 取得・変換完了（${meta.date} ${timing}）。入力欄に反映しました");
+      setAutoStatus(errN>0 ? "err" : "ok", errN>0 ? `⚠ 取得完了（${errN}件エラー・下を確認）／入力欄に反映しました` : `✅ 取得・変換完了（${meta.date || autoTodayStr()} ${timing}）。入力欄に反映しました`);
     }catch(e){
       setAutoStatus("err", "❌ " + (e && e.message ? e.message : e));
     }finally{

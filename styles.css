@@ -65,6 +65,8 @@ body{
 }
 .auto-field:first-child input{width:120px}
 .auto-field select{width:auto}
+.auto-asof{padding:0 12px 8px;font-size:12px;line-height:1.6}
+.auto-asof:empty{display:none}
 .auto-timing-info{align-self:center;font-size:11px;color:var(--muted);white-space:nowrap}
 .auto-dict-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
 .auto-dict{color:var(--muted);font-size:11px}

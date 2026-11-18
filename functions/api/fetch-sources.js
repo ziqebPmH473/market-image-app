@@ -30,7 +30,9 @@ function parseNomuraIndex(html) {
     if (!/円|ポイント/.test(val) || !/%/.test(chg)) continue;   // 指数行のみ
     const value = val.replace(/円|ポイント/g, "").trim();
     const cm = chg.match(/([+\-][\d.,]+)\s*\(([+\-][\d.]+)\s*%\)/);
-    rows.push({ name, value, change: cm ? cm[1] : "", pct: cm ? cm[2] + "%" : "" });
+    // 行内に時刻（例 "15:30" "11/18 15:30"）のセルがあれば拾う
+    const time = cells.slice(3).find((c) => /^(\d{1,2}\/\d{1,2}\s*)?\d{1,2}:\d{2}$/.test(c)) || "";
+    rows.push({ name, value, change: cm ? cm[1] : "", pct: cm ? cm[2] + "%" : "", time });
   }
   return rows;
 }
@@ -65,6 +67,30 @@ function parseNikkei(html) {
   }));
 }
 
+// --- ページ上の「何時時点のデータか」の表記を拾う（見つからなければ ""）---
+function pad2(n) { return String(n).padStart(2, "0"); }
+function extractAsOf(html, src, rows) {
+  // 1) 「15:00現在」「2026/11/18 15:00 時点」「15時00分更新」等の表記
+  const text = cellText(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, " "));
+  const re = /(?:(\d{4})[\/年.\-](\d{1,2})[\/月.\-](\d{1,2})日?\s*(?:\([^)]*\)\s*)?)?(\d{1,2})[:：時](\d{2})分?\s*(?:時点|現在|更新)/;
+  const m = text.match(re);
+  if (m) return (m[1] ? `${m[1]}/${pad2(m[2])}/${pad2(m[3])} ` : "") + `${pad2(m[4])}:${m[5]}`;
+  // 2) 野村：指数行の時刻セル（日経平均を優先）
+  if (src.key === "nomura_index" && rows) {
+    const r = rows.find((x) => x.name === "日経平均" && x.time) || rows.find((x) => x.time);
+    if (r) return r.time;
+  }
+  // 3) 日経：__NEXT_DATA__ 内の日時らしき値（"2026-11-18T15:00" / "2026/11/18 15:00"）
+  if (src.key.startsWith("nikkei_")) {
+    const nd = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (nd) {
+      const t = nd[1].match(/"[A-Za-z_]*(?:TIME|Time|time|DATE|Date|date|UPD|upd)[A-Za-z_]*"\s*:\s*"(\d{4})[\/\-](\d{2})[\/\-](\d{2})[T ](\d{2}):(\d{2})/);
+      if (t) return `${t[1]}/${t[2]}/${t[3]} ${t[4]}:${t[5]}`;
+    }
+  }
+  return "";
+}
+
 async function fetchOne(src) {
   const out = { key: src.key, label: src.label, url: src.url };
   try {
@@ -80,6 +106,7 @@ async function fetchOne(src) {
     if (src.key === "nomura_index") { out.kind = "index"; out.rows = parseNomuraIndex(html); }
     else if (src.key.startsWith("kabutan_sector")) { out.kind = "sector"; out.rows = parseKabutanSector(html); }
     else if (src.key.startsWith("nikkei_")) { out.kind = "ranking"; out.rows = parseNikkei(html) || []; }
+    out.asOf = extractAsOf(html, src, out.rows);
     const rc = out.rows ? out.rows.length : 0;
     if (rc) out.rowCount = rc;
     // ページは200でも中身が取れていなければエラー扱いにする

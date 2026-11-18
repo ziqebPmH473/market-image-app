@@ -767,6 +767,23 @@ function autoSourceLines(s){
   }).join("\n");
 }
 
+// 「何時時点のデータか」の表示（ツール上のみ・画像には書かない）
+function autoJstStr(iso){
+  const d = iso ? new Date(iso) : new Date();
+  if(isNaN(d)) return "";
+  const j = new Date(d.getTime() + 9*3600*1000);
+  const p = (n) => String(n).padStart(2,"0");
+  return `${j.getUTCFullYear()}/${p(j.getUTCMonth()+1)}/${p(j.getUTCDate())} ${p(j.getUTCHours())}:${p(j.getUTCMinutes())}`;
+}
+function autoAsOfHtml(fetchedAt, sources){
+  const fetched = autoJstStr(fetchedAt);
+  const found = (sources||[]).filter(s => s.asOf);
+  const per = found.length
+    ? found.map(s => `${autoEsc(s.label)}：${autoEsc(s.asOf)}時点`).join("　")
+    : "ページ上の時点表記は見つかりませんでした";
+  return `🕒 取得時刻：<b>${autoEsc(fetched)}</b>（日本時間）<br><span style="color:var(--muted)">${per}</span>`;
+}
+
 // 取得結果を開いて確認できる<details>群として描画（引用元プログラム準拠）
 function autoRenderSources(sources){
   sources = sources || [];
@@ -775,13 +792,14 @@ function autoRenderSources(sources){
   const items = sources.map(s => {
     const dot = s.ok ? '<span style="color:#4ade80">●</span>' : '<span style="color:#f87171">●</span>';
     const cnt = s.rowCount ? ` ${s.rowCount}行` : "";
+    const asOf = s.asOf ? ` <span style="color:var(--muted)">｜${autoEsc(s.asOf)}時点</span>` : "";
     const errMsg = s.error || s.reason || "";
     const warn = s.ok ? "" : ` <span style="color:#f87171">⚠ ${autoEsc(errMsg||"取得エラー")}</span>`;
     const body = (!s.ok && errMsg ? `<div style="font-size:11px;color:#f87171;margin:4px 0;">⚠ ${autoEsc(errMsg)}</div>` : "")
       + `<pre>${autoEsc(autoSourceLines(s))}</pre>`;
     // エラーのソースは開いておく
     return `<details ${!s.ok ? "open" : ""}>`
-      + `<summary>${dot} ${autoEsc(s.label)} <span style="color:var(--muted)">(${s.status||"-"}${cnt})</span>${warn}</summary>`
+      + `<summary>${dot} ${autoEsc(s.label)} <span style="color:var(--muted)">(${s.status||"-"}${cnt})</span>${asOf}${warn}</summary>`
       + body + `</details>`;
   }).join("");
   return `<details ${anyErr ? "open" : ""}>`
@@ -1107,6 +1125,7 @@ rank\tsector\tpct\tper
     btn.textContent = "取得中…";
     setAutoStatus("", "データ取得中…（野村・日経・株探）");
     if(resultEl) resultEl.innerHTML = "";
+    if($("autoAsOf")) $("autoAsOf").innerHTML = "";
     try{
       const res = await fetch("/api/fetch-sources");
       if(!res.ok) throw new Error("サーバー応答エラー: " + res.status);
@@ -1114,6 +1133,8 @@ rank\tsector\tpct\tper
       const sources = data.sources || [];
       const okN = sources.filter(s => s.ok).length;
       if(resultEl) resultEl.innerHTML = autoRenderSources(sources);
+      const asOfEl = $("autoAsOf");
+      if(asOfEl) asOfEl.innerHTML = autoAsOfHtml(data.fetchedAt, sources);
 
       const timing = currentTiming();
       const meta = { date: (autoDate && autoDate.value.trim()) || "", timing };

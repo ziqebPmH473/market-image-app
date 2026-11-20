@@ -190,6 +190,26 @@ const IMG_FONT_FAMILY = "Noto Sans JP";
 const IMG_FONT = `"${IMG_FONT_FAMILY}", sans-serif`;
 const IMG_FONT_WEIGHTS = ["400", "800", "900"];   // drawCard で使っているウェイト（index.html の読み込みと揃える）
 
+// ----- 背景色：前引けはクリーム、大引け（引け後）は青グレー -----
+function isCloseTiming(timing){ return /引け後|大引け/.test(String(timing || "")); }
+function cardPalette(model){
+  return isCloseTiming(model && model.timing)
+    ? { bg: "#e6edf5", border: "#c9d3df" }
+    : { bg: "#f5f2e8", border: "#d7d1c4" };
+}
+
+// ----- 透かしロゴ（kessan-tool と同じ assets/logo_sumikko.png・同じ置き方） -----
+// 中央に、幅 640/1080、濃さ 5%。図形（カード）の前、文字の後ろに描く
+const WATERMARK_SRC = "assets/logo_sumikko.png";
+const WATERMARK_WIDTH = 640 / 1080;
+const WATERMARK_OPACITY = 0.05;
+const WATERMARK_IMG = new Image();
+const WATERMARK_READY = new Promise(res => {
+  WATERMARK_IMG.onload = () => res(true);
+  WATERMARK_IMG.onerror = () => res(false);
+});
+WATERMARK_IMG.src = WATERMARK_SRC;
+
 // カードに描く文字を集める（日本語フォントは文字ごとに分割配信されるため、使う文字を指定して読み込む）
 function collectCardText(model){
   const chars = new Set("…0123456789+-.,%");
@@ -209,6 +229,7 @@ async function ensureImageFonts(model){
   try{
     await Promise.all(IMG_FONT_WEIGHTS.map(w => document.fonts.load(`${w} 16px "${IMG_FONT_FAMILY}"`, text)));
     await document.fonts.ready;
+    await WATERMARK_READY;   // 透かしロゴも読み込み終えてから描く（読めなくても画像は作る）
   }catch(_){}
   return IMG_FONT_WEIGHTS.every(w => document.fonts.check(`${w} 16px "${IMG_FONT_FAMILY}"`, text));
 }
@@ -275,8 +296,7 @@ function drawCard(ctx, W, H, model){
   const G = 10*s;
 
   // palette
-  const bg = "#f5f2e8";
-  const border = "#d7d1c4";
+  const { bg, border } = cardPalette(model);
   const boxFill = "#ffffff";
   const text = "#0b0b0b";
   const muted = "#2a2a2a";
@@ -288,21 +308,28 @@ function drawCard(ctx, W, H, model){
   ctx.fillStyle = bg;
   ctx.fillRect(0,0,W,H);
 
-  // Watermark
-  ctx.save();
-  ctx.globalAlpha = 0.085;
-  ctx.translate(W/2, H/2);
-  ctx.rotate(-Math.PI/6); // -30deg
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `400 ${140*s}px ${IMG_FONT}`;
-  ctx.fillText("@sumikko_money", 0, 0);
-  ctx.restore();
+  // 重なり順：背景 → 図形（カード）→ 透かしロゴ → 文字
+  // レイアウトを2回たどり、1回目は図形だけ、2回目は文字だけを描く
+  layout("shape");
+  drawWatermark();
+  layout("text");
 
+  function drawWatermark(){
+    if(!WATERMARK_IMG.complete || !WATERMARK_IMG.naturalWidth) return;
+    const w = W * WATERMARK_WIDTH;
+    const h = w * WATERMARK_IMG.naturalHeight / WATERMARK_IMG.naturalWidth;
+    ctx.save();
+    ctx.globalAlpha = WATERMARK_OPACITY;
+    ctx.drawImage(WATERMARK_IMG, (W - w)/2, (H - h)/2, w, h);
+    ctx.restore();
+  }
+
+  function layout(pass){
+  const fit = (...args) => { if(pass === "text") drawFitText(ctx, ...args); };
 
   // helper to draw framed box
   function box(x,y,w,h,r=14*s){
+    if(pass !== "shape") return;
     ctx.fillStyle = boxFill;
     drawRoundedRect(ctx, x,y,w,h,r);
     ctx.fill();
@@ -317,11 +344,11 @@ function drawCard(ctx, W, H, model){
     : (model.date ? `${model.title}（${model.date}）` : model.title);
 
   ctx.fillStyle = text;
-  drawFitText(ctx, titleText, W/2, 74*s, W - 2*M, 50*s, 32*s, "800", "center");
+  fit(titleText, W/2, 74*s, W - 2*M, 50*s, 32*s, "800", "center");
 
   //if(model.headline){
   //  ctx.fillStyle = text;
-  //  drawFitText(ctx, model.headline, M, 98*s, W - 2*M, 24*s, 18*s, "700", "left");
+  //  fit(model.headline, M, 98*s, W - 2*M, 24*s, 18*s, "700", "left");
   //}
 
   // ----- Indices boxes -----
@@ -338,22 +365,22 @@ function drawCard(ctx, W, H, model){
   function drawIndexBox(x, y, w, h, label, value, diff, pct){
     const pad = 16*s;
     ctx.fillStyle = text;
-    drawFitText(ctx, label, x + w/2, y + 42*s, w - 2*pad, 36*s, 28*s, "800", "center");
+    fit(label, x + w/2, y + 42*s, w - 2*pad, 36*s, 28*s, "800", "center");
 
     const v = toNumberLoose(value);
     const vStr = isFinite(v) ? `${fmtComma(v, 2)}${label==="TOPIX"?"pt":"円"}` : String(value || "");
     // Index value should be black
     ctx.fillStyle = text;
-    drawFitText(ctx, vStr, x + w/2, y + 120*s, w - 2*pad, 70*s, 40*s, "900", "center");
+    fit(vStr, x + w/2, y + 120*s, w - 2*pad, 70*s, 40*s, "900", "center");
 
     const d = toNumberLoose(diff);
     const p = toNumberLoose(pct);
     const dStr = isFinite(d) ? fmtSigned(d, 2) : String(diff || "");
     const pStr = isFinite(p) ? `(${fmtSigned(p, 2)}%)` : (pct ? `(${pct})` : "");
     ctx.fillStyle = text;
-    drawFitText(ctx, "前日比:", x + 65*s, y + h - 24*s, 140*s, 30*s, 18*s, "800", "left");
+    fit("前日比:", x + 65*s, y + h - 24*s, 140*s, 30*s, 18*s, "800", "left");
     colorBySign(ctx, diff, red, green, text);
-    drawFitText(ctx, `${dStr} ${pStr}`, x + 184*s, y + h - 24*s, w - 220*s, 30*s, 18*s, "900", "left");
+    fit(`${dStr} ${pStr}`, x + 184*s, y + h - 24*s, w - 220*s, 30*s, 18*s, "900", "left");
   }
 
   drawIndexBox(leftX, idxY, idxW, idxH, "日経平均株価", model.nikkei_value, model.nikkei_diff, model.nikkei_pct);
@@ -362,7 +389,7 @@ function drawCard(ctx, W, H, model){
   // ----- Risers -----
   const risY = idxY + idxH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.risers_title, M, risY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
+  fit(model.risers_title, M, risY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
 
   const cardY = risY + 40*s;
   const cardH = 152*s;
@@ -388,17 +415,17 @@ function drawCard(ctx, W, H, model){
     else baseNamePx = 30*s;
 
     ctx.fillStyle = text;
-    drawFitText(ctx, name, x + w/2, y+38*s, w-2*pad, baseNamePx, 9*s, "900", "center");
+    fit(name, x + w/2, y+38*s, w-2*pad, baseNamePx, 9*s, "900", "center");
 
     // Percent (largest text in the card)
     const pn = toNumberLoose(pct);
     const pctStr = isFinite(pn) ? `${fmtSigned(pn, 2)}%` : pct;
     colorBySign(ctx, pct, red, green, text);
-    drawFitText(ctx, pctStr, x + w/2, y+84*s, w-2*pad, 44*s, 28*s, "900", "center");
+    fit(pctStr, x + w/2, y+84*s, w-2*pad, 44*s, 28*s, "900", "center");
 
     // Stock price centered
     ctx.fillStyle = text;
-    drawFitText(ctx, `株価 ${priceStr}円`, x + w/2, y+h-38*s, w-2*pad, 20*s, 18*s, "900", "center");
+    fit(`株価 ${priceStr}円`, x + w/2, y+h-38*s, w-2*pad, 20*s, 18*s, "900", "center");
 
     // Previous day diff centered, with colored value
     const dn = toNumberLoose(diff);
@@ -411,13 +438,15 @@ function drawCard(ctx, W, H, model){
     const wValue = ctx.measureText(diffStr).width;
     const startX = x + w/2 - (wLabel + wValue)/2;
 
-    ctx.fillStyle = text;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(labelPart, startX, y+h-14*s);
+    if(pass === "text"){
+      ctx.fillStyle = text;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(labelPart, startX, y+h-14*s);
 
-    colorBySign(ctx, diff, red, green, text);
-    ctx.fillText(diffStr, startX + wLabel, y+h-14*s);
+      colorBySign(ctx, diff, red, green, text);
+      ctx.fillText(diffStr, startX + wLabel, y+h-14*s);
+    }
 
     // restore
     ctx.textAlign = "left";
@@ -432,7 +461,7 @@ function drawCard(ctx, W, H, model){
   // ----- Decliners -----
   const decTitleY = cardY + cardH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.decliners_title, M, decTitleY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
+  fit(model.decliners_title, M, decTitleY + 26*s, W - 2*M, 30*s, 20*s, "900", "left");
 
   const decY = decTitleY + 40*s;
   for(let i=0;i<5;i++){
@@ -444,11 +473,11 @@ function drawCard(ctx, W, H, model){
   // ----- Sectors -----
   const secTitleY = decY + cardH + 14*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, model.sector_title, M, secTitleY + 26*s, W - 2*M, 30*s, 18*s, "900", "left");
+  fit(model.sector_title, M, secTitleY + 26*s, W - 2*M, 30*s, 18*s, "900", "left");
 
   const topLabelY = secTitleY + 44*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, "【トップ5】", M, topLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
+  fit("【トップ5】", M, topLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
 
   const secBoxY = topLabelY + 26*s;
   const secH = 116*s;
@@ -463,17 +492,17 @@ function drawCard(ctx, W, H, model){
 
     // Sector name centered
     ctx.fillStyle = text;
-    drawFitText(ctx, sector, x + w/2, y+34*s, w-2*pad, 25*s, 13*s, "900", "center");
+    fit(sector, x + w/2, y+34*s, w-2*pad, 25*s, 13*s, "900", "center");
 
     // Percent: biggest in this box (center)
     const pn = toNumberLoose(pct);
     const pctStr = isFinite(pn) ? `${fmtSigned(pn, 2)}%` : pct;
     colorBySign(ctx, pct, red, green, text);
-    drawFitText(ctx, pctStr, x + w/2, y+78*s, w-2*pad, 44*s, 24*s, "900", "center");
+    fit(pctStr, x + w/2, y+78*s, w-2*pad, 44*s, 24*s, "900", "center");
 
     // PER centered (black)
     ctx.fillStyle = text;
-    drawFitText(ctx, `PER ${per}倍`, x + w/2, y+2+h-14*s, w-2*pad, 20*s, 12*s, "900", "center");
+    fit(`PER ${per}倍`, x + w/2, y+2+h-14*s, w-2*pad, 20*s, 12*s, "900", "center");
   }
 
   for(let i=0;i<5;i++){
@@ -484,7 +513,7 @@ function drawCard(ctx, W, H, model){
 
   const worstLabelY = secBoxY + secH + 6*s;
   ctx.fillStyle = text;
-  drawFitText(ctx, "【ワースト5】", M, worstLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
+  fit("【ワースト5】", M, worstLabelY + 18*s, W - 2*M, 24*s, 12*s, "900", "left");
 
   const worstY = worstLabelY + 22*s;
   for(let i=0;i<5;i++){
@@ -492,6 +521,7 @@ function drawCard(ctx, W, H, model){
     const x = M + i*(secW+G);
     drawSectorBox(x, worstY, secW, secH, it);
   }
+  } // layout
 }
 
 function renderFromText(text, options={}){
@@ -575,7 +605,7 @@ async function downloadPNG(tall, onStatus){
   if(!built){ if(onStatus) onStatus("err", "入力データが不足しているため画像を作れません"); return; }
   if(built.error){ if(onStatus) onStatus("err", built.error); return; }
 
-  const cv = tall ? toTallCanvas(built.canvas, 1440) : built.canvas;
+  const cv = tall ? toTallCanvas(built.canvas, 1440, cardPalette(built.model).bg) : built.canvas;
   const blob = await new Promise(res => cv.toBlob(res, "image/png"));
   if(!blob){
     report("err", "PNG生成に失敗しました");
@@ -596,11 +626,11 @@ function loadMediabunny(){
 }
 
 // 縦長の1コマ：画像を真ん中に置き、上下はカードの背景色で埋める（高さ1920で9:16、1440で3:4）
-function toTallCanvas(card, height){
+function toTallCanvas(card, height, bg){
   const cv = document.createElement("canvas");
   cv.width = 1080; cv.height = height;
   const cx = cv.getContext("2d");
-  cx.fillStyle = "#f5f2e8";
+  cx.fillStyle = bg || "#f5f2e8";
   cx.fillRect(0, 0, cv.width, cv.height);
   cx.drawImage(card, (cv.width - card.width)/2, (cv.height - card.height)/2);
   return cv;
@@ -616,7 +646,7 @@ async function downloadReel(btn, onStatus, portrait){
     if(!built){ onStatus("err", "入力データが不足しているため動画を作れません"); return; }
     if(built.error){ onStatus("err", built.error); return; }
     const M = await loadMediabunny();
-    const img = portrait ? toTallCanvas(built.canvas, 1920) : built.canvas;
+    const img = portrait ? toTallCanvas(built.canvas, 1920, cardPalette(built.model).bg) : built.canvas;
     const W = img.width, H = img.height;
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;

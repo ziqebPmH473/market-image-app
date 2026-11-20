@@ -699,11 +699,20 @@ function autoLookupName(code){
   return d[up] !== undefined ? d[up] : null;
 }
 // ホールディングス→ＨＤ 等。順序重要（ＦＧ→ＨＤ→Ｇ）
+// 直前の区切り（半角/全角スペース・中黒「・」「･」）もまとめて取り除く
+//   例：「〇〇 ホールディングス」「〇〇・ホールディングス」→「〇〇ＨＤ」
+// 半角→全角にそろえる（英数字・記号・半角カナ）。スペースだけは半角にそろえる
+function autoToZenkaku(s){
+  return String(s)
+    .replace(/[｡-ﾟ]+/g, m => m.normalize("NFKC")) // 半角カナ→全角（濁点も結合）
+    .replace(/[!-~]/g, c => String.fromCharCode(c.charCodeAt(0) + 0xFEE0))
+    .replace(/\s/g, " "); // 全角スペース等→半角スペース
+}
 function autoAbbrevName(name){
-  return String(name)
-    .replace(/フィナンシャルグループ/g, "ＦＧ")
-    .replace(/ホールディングス/g, "ＨＤ")
-    .replace(/グループ/g, "Ｇ");
+  return autoToZenkaku(String(name).trim())
+    .replace(/[\s　・･]*フィナンシャル[\s　・･]*グループ/g, "ＦＧ")
+    .replace(/[\s　・･]*ホールディングス/g, "ＨＤ")
+    .replace(/[\s　・･]*グループ/g, "Ｇ");
 }
 // 銘柄名：正式名称（辞書）優先→無ければソース名。最後に略記変換。
 function autoResolveName(code, srcName){

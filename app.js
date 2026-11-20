@@ -199,10 +199,10 @@ function cardPalette(model){
 }
 
 // ----- 透かしロゴ（kessan-tool と同じ assets/logo_sumikko.png・同じ置き方） -----
-// 中央に、幅 640/1080、濃さ 5%。図形（カード）の前、文字の後ろに描く
+// 中央に、幅 640/1080、濃さ 8%。図形（カード）の前、文字の後ろに描く
 const WATERMARK_SRC = "assets/logo_sumikko.png";
 const WATERMARK_WIDTH = 640 / 1080;
-const WATERMARK_OPACITY = 0.05;
+const WATERMARK_OPACITY = 0.08;
 const WATERMARK_IMG = new Image();
 const WATERMARK_READY = new Promise(res => {
   WATERMARK_IMG.onload = () => res(true);
@@ -231,7 +231,11 @@ async function ensureImageFonts(model){
     await document.fonts.ready;
     await WATERMARK_READY;   // 透かしロゴも読み込み終えてから描く（読めなくても画像は作る）
   }catch(_){}
-  return IMG_FONT_WEIGHTS.every(w => document.fonts.check(`${w} 16px "${IMG_FONT_FAMILY}"`, text));
+  // check() は、そのフォント自体がページに無いとき（Google Fonts に繋がらないなど）も true を返す。
+  // なので、Noto Sans JP の各ウェイトが実際に読み込まれていることも確かめる
+  const loaded = w => [...document.fonts].some(f =>
+    f.family.replace(/["']/g, "") === IMG_FONT_FAMILY && String(f.weight) === w && f.status === "loaded");
+  return IMG_FONT_WEIGHTS.every(w => loaded(w) && document.fonts.check(`${w} 16px "${IMG_FONT_FAMILY}"`, text));
 }
 const IMG_FONT_WARN = "画像用フォント（Noto Sans JP）を読み込めませんでした。通信を確認してから、もう一度お試しください";
 
